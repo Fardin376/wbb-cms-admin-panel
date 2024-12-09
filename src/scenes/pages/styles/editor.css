@@ -1,0 +1,83 @@
+#gjs {
+  border: none;
+}
+/* Theming */
+
+/* Primary color for the background */
+.gjs-one-bg {
+  background-color: #3da58a;
+}
+
+/* Secondary color for the text color */
+.gjs-two-color {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Tertiary color for the background */
+.gjs-three-bg {
+  background-color: #3da58a;
+  color: white;
+}
+
+/* Quaternary color for the text color */
+.gjs-four-color,
+.gjs-four-color-h:hover {
+  color: #ec5896;
+}
+
+.save-button {
+  padding: 8px 16px;
+  background-color: #3da58a;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin: 10px;
+}
+
+.save-button:hover {
+  background-color: #0056b3;
+}
+
+.editor-canvas {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  min-height: 100vh;
+}
+
+.editor-loading,
+.editor-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 20px;
+  text-align: center;
+  background-color: #f5f5f5;
+}
+
+.editor-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+.editor-error button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.editor-error button:hover {
+  background-color: #d32f2f;
+}
