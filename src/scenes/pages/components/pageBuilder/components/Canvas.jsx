@@ -4,6 +4,9 @@ import 'grapesjs/dist/css/grapes.min.css';
 import '../../../styles/editor.css';
 import blocksBasic from 'grapesjs-blocks-basic';
 import axiosInstance from '../../../../../utils/axios.config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { v4 as uuidv4 } from 'uuid'; // To generate unique file names
+import { storage } from '../../../../../utils/firebaseConfig'; // Import initialized storage
 
 // Add this function before the Canvas component
 const setupImageHandling = (editor, saveTemplate) => {
@@ -23,22 +26,23 @@ const setupImageHandling = (editor, saveTemplate) => {
       selectedComponent.set({
         attributes: {
           src: src,
-          alt: asset.get('name')
+          alt: asset.get('name'),
         },
-        src: src
+        src: src,
       });
       console.log('Updated existing image');
     } else {
       // Find featured image or create new one
-      const featuredImage = editor.DomComponents.getWrapper().find('.featured-image')[0];
-      
+      const featuredImage =
+        editor.DomComponents.getWrapper().find('.featured-image')[0];
+
       if (featuredImage) {
         featuredImage.set({
           attributes: {
             src: src,
-            alt: asset.get('name')
+            alt: asset.get('name'),
           },
-          src: src
+          src: src,
         });
         editor.select(featuredImage);
         console.log('Updated featured image');
@@ -50,16 +54,16 @@ const setupImageHandling = (editor, saveTemplate) => {
             src: src,
             alt: asset.get('name'),
             'data-gjs-type': 'image',
-            class: 'content-image'
+            class: 'content-image',
           },
           src: src,
           style: {
             'max-width': '100%',
-            'width': '300px',
-            'height': 'auto',
-            'display': 'block',
-            'margin': '10px auto'
-          }
+            width: '300px',
+            height: 'auto',
+            display: 'block',
+            margin: '10px auto',
+          },
         };
 
         const addedComponent = editor.addComponents(imageComponent)[0];
@@ -84,8 +88,14 @@ const setupImageHandling = (editor, saveTemplate) => {
     if (component.get('type') === 'image') {
       component.set({
         resizable: {
-          tl: true, tr: true, bl: true, br: true,
-          tc: true, bc: true, cl: true, cr: true
+          tl: true,
+          tr: true,
+          bl: true,
+          br: true,
+          tc: true,
+          bc: true,
+          cl: true,
+          cr: true,
         },
         toolbar: [
           { command: 'tlb-move' },
@@ -93,14 +103,14 @@ const setupImageHandling = (editor, saveTemplate) => {
           { command: 'tlb-delete' },
           {
             command: {
-              run: function(editor) {
+              run: function (editor) {
                 editor.AssetManager.open();
-              }
+              },
             },
             attributes: { class: 'fa fa-upload' },
-            label: 'Change Image'
-          }
-        ]
+            label: 'Change Image',
+          },
+        ],
       });
     }
   });
@@ -112,11 +122,11 @@ const setupImageHandling = (editor, saveTemplate) => {
         resizable: true,
         style: {
           'max-width': '100%',
-          'width': '300px',
-          'height': 'auto',
-          'display': 'block',
-          'margin': '10px auto'
-        }
+          width: '300px',
+          height: 'auto',
+          display: 'block',
+          margin: '10px auto',
+        },
       });
     }
   });
@@ -132,10 +142,11 @@ const Canvas = ({ editor, setEditor, pageId }) => {
     try {
       const response = await axiosInstance.get(`/pages/${pageId}`);
       if (response.data.success) {
-        const { layout } = response.data.page;
-        const { html, css } = typeof layout.content === 'string'
-          ? JSON.parse(layout.content)
-          : layout.content;
+        const { layout, template } = response.data.page;
+        const { html, css } =
+          typeof layout.content === 'string'
+            ? JSON.parse(layout.content)
+            : layout.content;
         return { html, css };
       }
       throw new Error(response.data.message || 'Failed to fetch page layout');
@@ -152,16 +163,17 @@ const Canvas = ({ editor, setEditor, pageId }) => {
       const js = editorInstance.getJs();
 
       // Get all image components
-      const imageComponents = editorInstance.DomComponents.getWrapper().find('img');
+      const imageComponents =
+        editorInstance.DomComponents.getWrapper().find('img');
       const assets = [];
       let processedHtml = html;
 
       // Process each image component
-      imageComponents.forEach(comp => {
+      imageComponents.forEach((comp) => {
         const src = comp.get('src');
         if (src && !src.includes('placeholder.com')) {
           const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '');
-          
+
           // Extract the path part after the base URL
           const pathMatch = src.match(new RegExp(`${baseUrl}(.+)$`));
           const relativeSrc = pathMatch ? pathMatch[1] : src;
@@ -169,12 +181,12 @@ const Canvas = ({ editor, setEditor, pageId }) => {
           assets.push({
             src: relativeSrc,
             type: 'image',
-            name: comp.get('attributes').alt || relativeSrc.split('/').pop()
+            name: comp.get('attributes').alt || relativeSrc.split('/').pop(),
           });
 
           // Update HTML to use relative paths
           processedHtml = processedHtml.replace(
-            new RegExp(src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+            new RegExp(src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
             relativeSrc
           );
         }
@@ -184,13 +196,16 @@ const Canvas = ({ editor, setEditor, pageId }) => {
         html: processedHtml.trim(),
         css: css.trim(),
         js: js.trim(),
-        assets: assets
+        assets: assets,
       };
 
-      const response = await axiosInstance.put(`/pages/update-template/${pageId}`, {
-        template,
-        language: 'en'
-      });
+      const response = await axiosInstance.put(
+        `/pages/update-template/${pageId}`,
+        {
+          template,
+          language: 'en',
+        }
+      );
 
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to save template');
@@ -235,7 +250,14 @@ const Canvas = ({ editor, setEditor, pageId }) => {
           plugins: [blocksBasic],
           pluginsOpts: {
             [blocksBasic]: {
-              blocks: ['column1', 'column2', 'column3', 'text', 'link', 'image'],
+              blocks: [
+                'column1',
+                'column2',
+                'column3',
+                'text',
+                'link',
+                'image',
+              ],
               flexGrid: true,
             },
           },
@@ -251,46 +273,52 @@ const Canvas = ({ editor, setEditor, pageId }) => {
             embedAsBase64: false,
             autoAdd: false,
             dropzoneContent: 'Drop files here or click to upload',
-            uploadFile: async function(e) {
+            uploadFile: async function (e) {
               try {
-                const files = e.dataTransfer ? e.dataTransfer.files : e.target.files;
-                const formData = new FormData();
-                
+                const files = e.dataTransfer
+                  ? e.dataTransfer.files
+                  : e.target.files;
+                const uploadPromises = [];
+
                 for (const file of files) {
-                  formData.append('files', file);
+                  const uniqueFileName = `pages/${Date.now()}-${uuidv4()}-${
+                    file.name
+                  }`;
+                  const storageRef = ref(storage, uniqueFileName);
+
+                  const uploadPromise = uploadBytes(storageRef, file).then(
+                    async (snapshot) => {
+                      const downloadURL = await getDownloadURL(snapshot.ref);
+                      console.log('File uploaded successfully:', downloadURL);
+
+                      return {
+                        src: downloadURL,
+                        name: file.name,
+                        type: 'image',
+                      };
+                    }
+                  );
+
+                  uploadPromises.push(uploadPromise);
                 }
 
-                const response = await axiosInstance.post('/pages/upload-asset', formData, {
-                  headers: { 'Content-Type': 'multipart/form-data' },
-                });
+                // Resolve all uploads
+                const uploadedAssets = await Promise.all(uploadPromises);
 
-                if (response.data.success) {
-                  const assets = response.data.urls.map(url => {
-                    // Ensure we're using just the path without any base URL
-                    const imagePath = url.url.startsWith('/') ? url.url : `/${url.url}`;
-                    const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '');
-                    
-                    return {
-                      src: `${baseUrl}${imagePath}`,
-                      name: url.name,
-                      type: 'image'
-                    };
-                  });
-
-                  // Add assets to Asset Manager
-                  const editor = this.em.get('Editor');
-                  if (editor && editor.AssetManager) {
-                    assets.forEach(asset => editor.AssetManager.add(asset));
-                  }
-
-                  return assets;
+                // Add assets to GrapesJS Asset Manager
+                const editor = this.em.get('Editor');
+                if (editor && editor.AssetManager) {
+                  uploadedAssets.forEach((asset) =>
+                    editor.AssetManager.add(asset)
+                  );
                 }
-                throw new Error('Upload failed');
+
+                return uploadedAssets;
               } catch (error) {
-                console.error('Error uploading files:', error);
+                console.error('Error uploading files to Firebase:', error);
                 throw error;
               }
-            }
+            },
           },
           // Simplified component defaults
           components: {
@@ -303,17 +331,17 @@ const Canvas = ({ editor, setEditor, pageId }) => {
                     resizable: true,
                     style: {
                       'max-width': '100%',
-                      'width': '300px'
-                    }
-                  }
-                }
-              }
-            }
-          }
+                      width: '300px',
+                    },
+                  },
+                },
+              },
+            },
+          },
         };
 
         const editorInstance = grapesjs.init(editorConfig);
-        
+
         // Add this to ensure AssetManager is properly initialized
         editorInstance.on('load', () => {
           console.log('Editor loaded, initializing asset manager...');
@@ -350,25 +378,25 @@ const Canvas = ({ editor, setEditor, pageId }) => {
           if (component.get('type') === 'image') {
             const src = component.get('src');
             console.log('Image dropped:', src);
-            
+
             // Ensure the image is properly configured
             component.set({
               selectable: true,
               hoverable: true,
               draggable: true,
               resizable: true,
-              editable: true
+              editable: true,
             });
           }
         });
 
         // Add these event handlers after initializing the editor
-        editorInstance.on('component:selected', component => {
+        editorInstance.on('component:selected', (component) => {
           if (component.get('type') === 'image') {
             // Ensure image component is properly configured when selected
             component.set({
               resizable: true,
-              style: { ...component.get('style'), 'max-width': '100%' }
+              style: { ...component.get('style'), 'max-width': '100%' },
             });
           }
         });
@@ -379,26 +407,35 @@ const Canvas = ({ editor, setEditor, pageId }) => {
             // Make sure the image is properly configured
             component.set({
               resizable: {
-                tl: true, tr: true, bl: true, br: true,
-                tc: true, bc: true, cl: true, cr: true
+                tl: true,
+                tr: true,
+                bl: true,
+                br: true,
+                tc: true,
+                bc: true,
+                cl: true,
+                cr: true,
               },
-              style: { 
+              style: {
                 ...component.get('style'),
                 'max-width': '100%',
-                height: 'auto'
+                height: 'auto',
               },
               toolbar: [
                 { command: 'tlb-move', attributes: { class: 'fa fa-arrows' } },
                 { command: 'tlb-clone', attributes: { class: 'fa fa-clone' } },
-                { command: 'tlb-delete', attributes: { class: 'fa fa-trash-o' } },
+                {
+                  command: 'tlb-delete',
+                  attributes: { class: 'fa fa-trash-o' },
+                },
                 {
                   command: 'custom-image-properties',
                   attributes: {
                     class: 'fa fa-cog',
-                    title: 'Settings'
-                  }
-                }
-              ]
+                    title: 'Settings',
+                  },
+                },
+              ],
             });
           }
         });
@@ -410,24 +447,24 @@ const Canvas = ({ editor, setEditor, pageId }) => {
             if (component && component.get('type') === 'image') {
               editor.StyleManager.select(component);
             }
-          }
+          },
         });
 
         // Add this to handle image drops
         editorInstance.on('block:drag:stop', (component) => {
           if (component.get('type') === 'image') {
             component.set({
-              style: { 
+              style: {
                 width: '300px',
                 height: 'auto',
                 'max-width': '100%',
                 display: 'block',
-                margin: '10px auto'
+                margin: '10px auto',
               },
               resizable: true,
               draggable: true,
               hoverable: true,
-              selectable: true
+              selectable: true,
             });
           }
         });
@@ -435,11 +472,11 @@ const Canvas = ({ editor, setEditor, pageId }) => {
         try {
           console.log('Fetching layout content...');
           const layoutContent = await fetchLayoutContent();
-          
+
           if (layoutContent && mounted) {
             console.log('Setting components and styles...');
             editorInstance.setComponents(layoutContent.html || '');
-            
+
             const cssContent = `
               ${layoutContent.css || ''}
               
@@ -474,7 +511,9 @@ const Canvas = ({ editor, setEditor, pageId }) => {
           }
         } catch (loadError) {
           if (mounted) {
-            editorInstance.setComponents('<p>Failed to load layout. Please try again.</p>');
+            editorInstance.setComponents(
+              '<p>Failed to load layout. Please try again.</p>'
+            );
             throw loadError;
           }
         }
@@ -505,9 +544,7 @@ const Canvas = ({ editor, setEditor, pageId }) => {
       <div className="editor-error">
         <h3>Error loading editor</h3>
         <p>{error.message}</p>
-        <button onClick={() => window.location.reload()}>
-          Retry
-        </button>
+        <button onClick={() => window.location.reload()}>Retry</button>
       </div>
     );
   }

@@ -162,12 +162,7 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
 
   const fetchAllMenus = async () => {
     try {
-      const response = await axiosInstance.get(
-        'http://localhost:5000/api/menu/get-all-menu-items',
-        {
-          withCredentials: true,
-        }
-      );
+      const response = await axiosInstance.get('/menu/get-all-menu-items');
       setAllMenus(buildMenuHierarchy(response.data.data));
     } catch (error) {
       console.error('Error fetching menu items:', error);

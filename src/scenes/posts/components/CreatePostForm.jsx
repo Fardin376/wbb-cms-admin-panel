@@ -23,6 +23,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import RichTextEditor from './RichTextEditor';
 import { useSnackbar } from 'notistack';
+import { useAuth } from '../../../context/AuthContext';
 
 const CreatePostForm = ({ post, onClose, pageId }) => {
   const theme = useTheme();
@@ -30,8 +31,7 @@ const CreatePostForm = ({ post, onClose, pageId }) => {
 
   const [categories, setCategories] = useState([]);
   const [pages, setPages] = useState([]);
-  const [userRole, setUserRole] = useState('');
-  const [userId, setUserId] = useState(null);
+  const { user } = useAuth();
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -65,42 +65,16 @@ const CreatePostForm = ({ post, onClose, pageId }) => {
     }
   };
 
-  const getCurrentUser = async () => {
-    try {
-      const response = await axiosInstance.get('/auth/users');
-      const users = response.data.users;
-      if (users?.length > 0) {
-        setUserRole(users[0].role || '');
-        setUserId(users[0]._id);
-      }
-    } catch (error) {
-      console.error('Error fetching user role:', error);
-      if (error.response?.status === 401) {
-        window.location.href = '/login';
-      }
-    }
-  };
-
   useEffect(() => {
-    getCurrentUser();
     fetchData();
   }, []);
-
-  useEffect(() => {
-    if (userId) {
-      formik.setFieldValue('createdBy', userId);
-    }
-  }, [userId]);
 
   const validationSchema = Yup.object({
     title: Yup.object({
       en: Yup.string()
         .required('Title (English) is required')
         .max(500, 'Title must not exceed 500 characters')
-        .matches(
-          /^[^<>{}[\]\\]*$/,
-          'Title contains invalid characters'
-        )
+        .matches(/^[^<>{}[\]\\]*$/, 'Title contains invalid characters')
         .trim(),
       bn: Yup.string()
         .required('Title (Bangla) is required')
@@ -122,7 +96,7 @@ const CreatePostForm = ({ post, onClose, pageId }) => {
       content: post?.content || { en: '', bn: '' },
       pages: post?.pages?.map((page) => page._id) || (pageId ? [pageId] : []),
       category: post?.category?._id || '',
-      createdBy: userId,
+
       isFeatured: Boolean(post?.isFeatured),
     },
     validationSchema,
@@ -350,7 +324,9 @@ const CreatePostForm = ({ post, onClose, pageId }) => {
                 }
                 label={
                   <Typography>
-                    {formik.values.isFeatured ? 'Featured Post' : 'Not Featured'}
+                    {formik.values.isFeatured
+                      ? 'Featured Post'
+                      : 'Not Featured'}
                   </Typography>
                 }
               />
@@ -379,4 +355,3 @@ const CreatePostForm = ({ post, onClose, pageId }) => {
 };
 
 export default CreatePostForm;
-

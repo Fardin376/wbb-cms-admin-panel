@@ -8,20 +8,20 @@ import {
   useTheme,
   styled,
   Snackbar,
-  Alert
+  Alert,
 } from '@mui/material';
-import { SimpleTreeView, TreeItem } from '@mui/x-tree-view';
+import { TreeView, TreeItem } from '@mui/x-tree-view';
 import {
   ExpandMore,
   ChevronRight,
   Add,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Close,
-  ArrowBack
+  ArrowBack,
 } from '@mui/icons-material';
 import axiosInstance from '../../../../utils/axios.config';
 import MenuForm from '../MenuForm';
+import { useAuth } from '../../../../context/AuthContext';
 
 const StyledTreeItem = styled(TreeItem)(({ theme }) => ({
   '& .MuiTreeItem-content': {
@@ -38,6 +38,7 @@ const StyledTreeItem = styled(TreeItem)(({ theme }) => ({
 }));
 
 const MenuView = () => {
+  const { user, authChecked } = useAuth();
   const theme = useTheme();
   const [menus, setMenus] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -46,8 +47,9 @@ const MenuView = () => {
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
-    severity: 'success'
+    severity: 'success',
   });
+  const [loading, setLoading] = useState(true);
 
   const handleToggle = (event, nodeIds) => {
     setExpanded(nodeIds);
@@ -57,26 +59,19 @@ const MenuView = () => {
     const itemMap = new Map();
     const roots = [];
 
-    // First pass: Create map of items with unique IDs
+    // First pass: Create map of items
     items.forEach((item) => {
-      if (!itemMap.has(item._id)) {
-        itemMap.set(item._id, { ...item, children: [] });
-      }
+      itemMap.set(item._id, { ...item, children: [] });
     });
 
     // Second pass: Build hierarchy
     items.forEach((item) => {
+      const mappedItem = itemMap.get(item._id);
       if (item.parentId && itemMap.has(item.parentId)) {
         const parent = itemMap.get(item.parentId);
-        // Check if child already exists to prevent duplicates
-        if (!parent.children.some(child => child._id === item._id)) {
-          parent.children.push(itemMap.get(item._id));
-        }
+        parent.children.push(mappedItem);
       } else {
-        // Only add to roots if not already present
-        if (!roots.some(root => root._id === item._id)) {
-          roots.push(itemMap.get(item._id));
-        }
+        roots.push(mappedItem);
       }
     });
 
@@ -85,21 +80,32 @@ const MenuView = () => {
 
   const fetchMenus = async () => {
     try {
-      const response = await axiosInstance.get('/menu/get-all-menu-items');
-      setMenus(buildMenuHierarchy(response.data.data));
+      setLoading(true);
+      const response = await axiosInstance.get('/menu/get-all-menu-items', {
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        const hierarchicalMenus = buildMenuHierarchy(response.data.data);
+        setMenus(hierarchicalMenus);
+        console.log('Hierarchical Menus:', hierarchicalMenus); // Debug log
+      }
     } catch (error) {
       console.error('Error fetching menus:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to fetch menus',
-        severity: 'error'
+        message: 'Failed to load menu items',
+        severity: 'error',
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMenus();
-  }, []);
+    if (authChecked && user) {
+      fetchMenus();
+    }
+  }, [authChecked, user]);
 
   const handleEdit = (menu) => {
     setEditingMenu(menu);
@@ -113,62 +119,64 @@ const MenuView = () => {
       setSnackbar({
         open: true,
         message: 'Menu deleted successfully',
-        severity: 'success'
+        severity: 'success',
       });
     } catch (error) {
       setSnackbar({
         open: true,
         message: 'Failed to delete menu',
-        severity: 'error'
+        severity: 'error',
       });
     }
   };
 
   const renderTreeItems = (items) => {
-    return items.map((item) => {
-      // Skip items without _id
-      if (!item._id) return null;
-      
-      return (
-        <StyledTreeItem
-          key={item._id}
-          nodeid={item._id.toString()}
-          itemId={item._id.toString()}
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', py: 1 }}>
-              <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                {item.title?.en || 'Untitled'}
-              </Typography>
-              <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(item);
-                }}
-                size="small"
-                color="info"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-              <IconButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteMenu(item);
-                }}
-                size="small"
-                color="error"
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          }
-        >
-          {Array.isArray(item.children) && item.children.length > 0
-            ? renderTreeItems(item.children)
-            : null}
-        </StyledTreeItem>
-      );
-    }).filter(Boolean); // Remove null items
+    return items.map((item) => (
+      <StyledTreeItem
+        key={item._id}
+        nodeId={item._id.toString()}
+        label={
+          <Box sx={{ display: 'flex', alignItems: 'center', py: 1 }}>
+            <Typography variant="body2" sx={{ flexGrow: 1 }}>
+              {item.title?.en || 'Untitled'}
+            </Typography>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(item);
+              }}
+              size="small"
+              color="info"
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteMenu(item);
+              }}
+              size="small"
+              color="error"
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        }
+      >
+        {item.children &&
+          item.children.length > 0 &&
+          renderTreeItems(item.children)}
+      </StyledTreeItem>
+    ));
   };
+
+  if (!authChecked) {
+    return <div>Checking authentication...</div>;
+  }
+
+  if (!user) {
+    return <div>Please log in to view menus</div>;
+  }
 
   return (
     <Box sx={{ m: 2 }}>
@@ -209,10 +217,10 @@ const MenuView = () => {
         />
       ) : (
         <Paper sx={{ p: 2 }}>
-          <SimpleTreeView
+          <TreeView
             aria-label="menu structure"
-            defaultcollapseicon={<ExpandMore />}
-            defaultexpandicon={<ChevronRight />}
+            defaultCollapseIcon={<ExpandMore />}
+            defaultExpandIcon={<ChevronRight />}
             expanded={expanded}
             onNodeToggle={handleToggle}
             sx={{ flexGrow: 1 }}
@@ -227,7 +235,7 @@ const MenuView = () => {
                 No menu items found
               </Typography>
             )}
-          </SimpleTreeView>
+          </TreeView>
         </Paper>
       )}
 

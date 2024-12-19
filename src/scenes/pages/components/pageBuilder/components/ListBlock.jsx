@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import axios from 'axios';
+import axiosInstance from '../../../../../utils/axios.config';
 
 const CategoryListBlock = ({ editor, category, language }) => {
   useEffect(() => {
@@ -60,9 +60,7 @@ const CategoryListBlock = ({ editor, category, language }) => {
 
             try {
               contentList.components('<li>Loading content...</li>'); // Loading state
-              const response = await axios.get(
-                `http://localhost:5000/api/posts/by-category/${categoryId}`
-              );
+              const response = await axiosInstance.get(`/posts/by-category/${categoryId}`);
               const data = response.data.posts;
 
               if (!data || data.length === 0) {

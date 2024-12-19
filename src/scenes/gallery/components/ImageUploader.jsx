@@ -21,6 +21,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import { useAuth } from '../../../context/AuthContext';
 
 const ImageUploader = ({ onUploadSuccess, onClose }) => {
   const theme = useTheme();
@@ -30,14 +31,13 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
   const [posts, setPosts] = useState([]);
   const [isPost, setIsPost] = useState(false);
   const [postId, setPostId] = useState('');
-  const [userRole, setUserRole] = useState('');
-  const [userId, setUserId] = useState('');
+  const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
   const [fileMetadata, setFileMetadata] = useState({
     size: 0,
     type: '',
-    dimensions: { width: 0, height: 0 }
+    dimensions: { width: 0, height: 0 },
   });
 
   useEffect(() => {
@@ -45,16 +45,14 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
       try {
         const [postsRes, userRes] = await Promise.all([
           axiosInstance.get('/posts/all-posts'),
-          axiosInstance.get('/auth/users')
         ]);
 
         setPosts(postsRes.data.posts || []);
-        
-        const users = userRes.data.users;
-        if (users?.length > 0) {
-          setUserRole(users[0].role || 'Guest');
-          setUserId(users[0]._id);
-        }
+
+        // if (user) {
+        //   setUserRole(user.role || 'Guest');
+        //   setUserId(user.id);
+        // }
       } catch (error) {
         handleError(error, 'Error fetching initial data');
       }
@@ -65,17 +63,18 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
 
   const handleError = (error, defaultMessage = 'An error occurred') => {
     console.error(defaultMessage, error);
-    
+
     if (error.response?.status === 401) {
-      enqueueSnackbar('Session expired. Please login again.', { variant: 'error' });
+      enqueueSnackbar('Session expired. Please login again.', {
+        variant: 'error',
+      });
       window.location.href = '/login';
       return;
     }
 
-    const errorMessage = error.response?.data?.message 
-      || error.message 
-      || defaultMessage;
-    
+    const errorMessage =
+      error.response?.data?.message || error.message || defaultMessage;
+
     enqueueSnackbar(errorMessage, { variant: 'error' });
   };
 
@@ -84,12 +83,17 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
 
     if (!validTypes.includes(file.type)) {
-      enqueueSnackbar('Please upload a valid image file (JPEG, PNG, GIF, WEBP)', { variant: 'error' });
+      enqueueSnackbar(
+        'Please upload a valid image file (JPEG, PNG, GIF, WEBP)',
+        { variant: 'error' }
+      );
       return false;
     }
 
     if (file.size > maxSize) {
-      enqueueSnackbar('File size should be less than 5MB', { variant: 'error' });
+      enqueueSnackbar('File size should be less than 5MB', {
+        variant: 'error',
+      });
       return false;
     }
 
@@ -119,7 +123,7 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
     setFileMetadata({
       size: file.size,
       type: file.type,
-      dimensions
+      dimensions,
     });
 
     setImageFile(file);
@@ -135,7 +139,10 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
   const handleUrlChange = (e) => {
     const url = e.target.value;
     if (url && !validateUrl(url)) {
-      enqueueSnackbar('Please enter a valid URL starting with http:// or https://', { variant: 'warning' });
+      enqueueSnackbar(
+        'Please enter a valid URL starting with http:// or https://',
+        { variant: 'warning' }
+      );
     }
     setImageUrl(url);
     setImageFile(null);
@@ -144,12 +151,16 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
 
   const validateForm = () => {
     if (!imageFile && !imageUrl) {
-      enqueueSnackbar('Please upload a file or provide a URL', { variant: 'error' });
+      enqueueSnackbar('Please upload a file or provide a URL', {
+        variant: 'error',
+      });
       return false;
     }
 
     if (!postId) {
-      enqueueSnackbar('Please select a post for this image', { variant: 'error' });
+      enqueueSnackbar('Please select a post for this image', {
+        variant: 'error',
+      });
       return false;
     }
 
@@ -170,7 +181,10 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
 
       if (useFile && imageFile) {
         try {
-          const storageRef = ref(storage, `gallery/${Date.now()}-${imageFile.name}`);
+          const storageRef = ref(
+            storage,
+            `gallery/${Date.now()}-${imageFile.name}`
+          );
           await uploadBytes(storageRef, imageFile);
           firebaseUrl = await getDownloadURL(storageRef);
         } catch (error) {
@@ -183,11 +197,11 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
         fileName: imageFile ? imageFile.name : 'External URL',
         usageTypes: {
           isPost: true,
-          postId
+          postId,
         },
-        uploadedBy: userId,
+        uploadedBy: user._id,
         metadata: useFile ? fileMetadata : undefined,
-        status: 'active'
+        status: 'active',
       };
 
       const response = await axiosInstance.post('/gallery/upload', uploadData);
@@ -256,7 +270,7 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
             fullWidth
             disabled={uploading}
             inputProps={{
-              accept: "image/jpeg,image/png,image/gif,image/webp"
+              accept: 'image/jpeg,image/png,image/gif,image/webp',
             }}
             helperText="Accepted formats: JPEG, PNG, GIF, WEBP. Max size: 5MB"
           />
@@ -268,7 +282,11 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
             onChange={handleUrlChange}
             disabled={uploading}
             error={imageUrl && !validateUrl(imageUrl)}
-            helperText={imageUrl && !validateUrl(imageUrl) ? "Please enter a valid URL" : ""}
+            helperText={
+              imageUrl && !validateUrl(imageUrl)
+                ? 'Please enter a valid URL'
+                : ''
+            }
             fullWidth
           />
         )}
@@ -292,7 +310,7 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
         </FormControl>
 
         <Typography variant="subtitle1">
-          <strong>Uploaded By: </strong> {userRole}
+          <strong>Uploaded By: </strong> {user.role}
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 2, width: '20%' }}>

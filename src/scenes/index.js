@@ -7,7 +7,9 @@ import PageLayout from './layout/pageLayout';
 import ViewPages from './pages';
 import PostList from './posts';
 import ViewGallery from './gallery';
+import ViewBanner from './bannerWidget';
 import ViewPdfs from './filesAndLinks';
+import ViewFooterLinks from './footerLinks';
 import Contacts from './contacts';
 import Form from './form';
 import FAQ from './faq';
@@ -23,7 +25,9 @@ export {
   ViewPages,
   PostList,
   ViewGallery,
+  ViewBanner,
   ViewPdfs,
+  ViewFooterLinks,
   Contacts,
   Form,
   FAQ,

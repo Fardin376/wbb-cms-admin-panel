@@ -4,16 +4,15 @@ import { useContext, useState } from 'react';
 import { tokens } from '../../../theme';
 import { Menu, MenuItem, Sidebar } from 'react-pro-sidebar';
 import {
+  AddAPhotoOutlined,
   AnchorOutlined,
-  ContentCopy,
   DashboardOutlined,
   FilePresent,
   ImageOutlined,
   LayersOutlined,
+  LinkOutlined,
   MenuOutlined,
-  Pages,
   PagesOutlined,
-  PostAdd,
   PostAddOutlined,
 } from '@mui/icons-material';
 import logo from '../../../assets/images/logo.png';
@@ -197,6 +196,43 @@ const SideBar = () => {
             path="/gallery"
             colors={colors}
             icon={<ImageOutlined fontSize="large" />}
+          />
+          <Item
+            title="Files & Links"
+            path="/pdfs"
+            colors={colors}
+            icon={<FilePresent fontSize="large" />}
+          />
+        </Menu>
+        <Typography
+          variant="h6"
+          color={colors.gray[300]}
+          sx={{ m: '15px 0 5px 20px' }}
+        >
+          {!collapsed ? 'Widgets' : ' '}
+        </Typography>
+        <Menu
+          menuItemStyles={{
+            button: {
+              ':hover': {
+                color: colors.greenAccent[300],
+                background: 'transparent',
+                transition: '.4s ease',
+              },
+            },
+          }}
+        >
+          <Item
+            title="Banner"
+            path="/banners"
+            colors={colors}
+            icon={<AddAPhotoOutlined fontSize="large" />}
+          />
+          <Item
+            title="Footer Links"
+            path="/footer-links"
+            colors={colors}
+            icon={<LinkOutlined fontSize="large" />}
           />
           <Item
             title="Files & Links"

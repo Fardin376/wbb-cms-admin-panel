@@ -23,6 +23,7 @@ import axiosInstance from '../../../../utils/axios.config';
 import { useSnackbar } from 'notistack';
 import DOMPurify from 'dompurify';
 import { defaultLayouts } from '../../../../utils/defaultLayouts';
+import { useAuth } from '../../../../context/AuthContext';
 
 const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
   const [activeEditor, setActiveEditor] = useState('html');
@@ -32,8 +33,7 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
   });
   const [identifier, setIdentifier] = useState('');
   const [layoutName, setLayoutName] = useState('');
-  const [userRole, setUserRole] = useState('');
-  const [userId, setUserId] = useState(null);
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('blogPost');
@@ -45,24 +45,11 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
   const theme = useTheme();
   const { enqueueSnackbar } = useSnackbar();
 
-  const getCurrentUser = async () => {
-    try {
-      const response = await axiosInstance.get('/auth/check-auth');
-      if (response.data?.success) {
-        setUserRole(response.data.user.role);
-        setUserId(response.data.user.id);
-      }
-    } catch (error) {
-      enqueueSnackbar('Failed to fetch user information', { variant: 'error' });
-    }
-  };
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
         await Promise.all([
-          getCurrentUser(),
           axiosInstance
             .get('/pages/all-pages')
             .then((response) => setPages(response.data.pages || [])),
@@ -141,7 +128,7 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
         name: layoutName,
         identifier: identifier.toLowerCase(),
         content: JSON.stringify({ html: code.html, css: code.css }),
-        createdBy: userId,
+        createdBy: user?.id,
       };
 
       const response = await axiosInstance[layout ? 'put' : 'post'](
@@ -308,7 +295,7 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
 
         <TextField
           label="User Role"
-          value={userRole.toUpperCase()}
+          value={user?.role}
           color="info"
           fullWidth
           variant="outlined"

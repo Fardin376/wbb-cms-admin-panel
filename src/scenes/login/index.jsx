@@ -27,12 +27,17 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
+    
     try {
-      await login({ email, password });
-      navigate('/');
+      const response = await login({ email, password });
+      if (response.success) {
+        navigate('/', { replace: true });
+      }
     } catch (err) {
-      setError('Invalid email or password');
+      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,17 @@
 import React from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import App from './App';
-import { Dashboard, FAQ, Menu, ViewPages, Login, PageLayout, ViewPdfs } from './scenes';
+import {
+  Dashboard,
+  FAQ,
+  Menu,
+  ViewPages,
+  Login,
+  PageLayout,
+  ViewPdfs,
+  ViewBanner,
+  ViewFooterLinks,
+} from './scenes';
 import PostList from './scenes/posts';
 import ViewGallery from './scenes/gallery';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -41,6 +51,8 @@ const AppRouter = () => {
               <Route path="/posts" element={<PostList />} />
               <Route path="/gallery" element={<ViewGallery />} />
               <Route path="/pdfs" element={<ViewPdfs />} />
+              <Route path="/banners" element={<ViewBanner />} />
+              <Route path="/footer-links" element={<ViewFooterLinks />} />
             </Route>
 
             {/* Routes accessible to all authenticated users */}
