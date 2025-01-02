@@ -46,25 +46,6 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
   const { enqueueSnackbar } = useSnackbar();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        await Promise.all([
-          axiosInstance
-            .get('/pages/all-pages')
-            .then((response) => setPages(response.data.pages || [])),
-        ]);
-      } catch (error) {
-        setError(error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  useEffect(() => {
     if (layout) {
       setLayoutName(layout.name || '');
       setIdentifier(layout.identifier || '');
@@ -132,7 +113,7 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
       };
 
       const response = await axiosInstance[layout ? 'put' : 'post'](
-        layout ? `/layouts/update/${layout._id}` : '/layouts/create',
+        layout ? `/layouts/update/${layout.id}` : '/layouts/create',
         layoutData
       );
 
@@ -288,10 +269,38 @@ const PageLayoutForm = ({ layout, onClose, onSubmitSuccess }) => {
             onChange={(e) => handleTemplateChangeClick(e.target.value)}
             label="Layout Template"
           >
-            <MenuItem value="landing">Landing Page</MenuItem>
-            <MenuItem value="blogPost">Blog Post</MenuItem>
+            {Object.entries(defaultLayouts).map(([key, layout]) => (
+              <MenuItem value={key} key={key}>
+                <Box>
+                  <Typography variant="subtitle1">{layout.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {layout.description}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
+
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            Selected Template: {defaultLayouts[selectedTemplate]?.name}
+          </Typography>
+          <Paper
+            elevation={1}
+            sx={{
+              p: 2,
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+            }}
+          >
+            <Typography variant="body2">
+              {defaultLayouts[selectedTemplate]?.description}
+            </Typography>
+          </Paper>
+        </Box>
 
         <TextField
           label="User Role"

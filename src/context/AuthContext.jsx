@@ -1,10 +1,23 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axios.config';
+import LoadingScreen from '../components/LoadingScreen';
 
 const AuthContext = createContext(null);
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -14,16 +27,28 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await axiosInstance.post('/auth/login', credentials);
-      if (response.data.success) {
+      setLoading(true);
+      const response = await axiosInstance.post('/auth/login', credentials, {
+        withCredentials: true, // Ensure cookies are received
+      });
+
+      if (response.data.success && response.data.user) {
         setUser(response.data.user);
         navigate('/');
-        return true;
+        return { success: true };
       }
-      return false;
+      return {
+        success: false,
+        message: response.data.message || 'Login failed',
+      };
     } catch (error) {
       console.error('Login error:', error);
-      throw error;
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Invalid credentials',
+      };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -31,17 +56,28 @@ export const AuthProvider = ({ children }) => {
     if (authChecked) return;
 
     try {
-      const response = await axiosInstance.get('/auth/check');
-      if (response.data.success) {
-        console.log('Authenticated user:', response.data.user); // Debugging user data
+      const response = await axiosInstance.get('/auth/check', {
+        withCredentials: true,
+      });
+
+      if (response.data.success && response.data.isAuthenticated) {
         setUser(response.data.user);
       } else {
-        console.warn('Authentication failed: User not found'); // Warn if no user is returned
+        // This is a normal case for unauthenticated users
         setUser(null);
+        if (window.location.pathname !== '/login') {
+          navigate('/login');
+        }
       }
     } catch (error) {
-      console.error('Auth check error:', error); // Debugging errors
+      console.error(
+        'Auth check failed:',
+        error.response?.data?.message || error.message
+      );
       setUser(null);
+      if (window.location.pathname !== '/login') {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
       setAuthChecked(true);
@@ -55,38 +91,37 @@ export const AuthProvider = ({ children }) => {
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
+      // Continue with logout even if the server request fails
+    } finally {
+      // Clear cookie and user state
+      document.cookie =
+        'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      setUser(null);
+      navigate('/login');
     }
   };
 
-  // Add interceptor to handle auth errors
-  useEffect(() => {
-    checkAuthStatus();
-
-    const interceptor = axiosInstance.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.data?.isAuthError) {
-          setUser(null);
-          navigate('/login');
-        }
-        return Promise.reject(error);
+  const handleAuthError = useCallback(() => {
+    setUser(null);
+    // Debounce navigation to prevent multiple redirects
+    const timeoutId = setTimeout(() => {
+      if (window.location.pathname !== '/login') {
+        navigate('/login');
       }
-    );
-
-    return () => axiosInstance.interceptors.response.eject(interceptor);
+    }, 100);
+    return () => clearTimeout(timeoutId);
   }, [navigate]);
 
+  useEffect(() => {
+    checkAuthStatus();
+  }, [navigate, handleAuthError]);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        logout,
-        loading,
-        authChecked,
-        checkAuthStatus,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

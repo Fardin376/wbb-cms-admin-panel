@@ -25,6 +25,7 @@ import axiosInstance from '../../utils/axios.config';
 import { tokens } from '../../theme';
 import BannerUploader from './components/BannerUploader';
 import { useSnackbar } from 'notistack';
+import { deleteImage } from '../../services/imageService';
 
 const ViewBanner = () => {
   const [banners, setBanners] = useState([]);
@@ -57,16 +58,30 @@ const ViewBanner = () => {
   };
 
   // Delete banner function
-  const handleDeleteBanner = async (bannerId) => {
+  const handleDeleteBanner = async (bannerId, bannerUrl) => {
     try {
+      // Attempt to delete the image from Firebase Storage
+      const imageDeleted = await deleteImage(bannerUrl);
+
+      if (!imageDeleted) {
+        enqueueSnackbar('Failed to delete the image from Firebase Storage.', {
+          variant: 'warning',
+        });
+      }
+
+      // Delete the banner metadata from the database
       await axiosInstance.delete(`/banners/${bannerId}`);
       enqueueSnackbar('Banner deleted successfully', { variant: 'success' });
-      getBanners(); // Refresh banners list
+
+      // Refresh banners list
+      getBanners();
     } catch (error) {
+      console.error('Error deleting banner:', error);
       enqueueSnackbar(
         error.response?.data?.message || 'Failed to delete banner',
         { variant: 'error' }
       );
+
       if (error.response?.status === 401) {
         window.location.href = '/login';
       }
@@ -85,7 +100,7 @@ const ViewBanner = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await handleDeleteBanner(selectedBanner._id);
+      await handleDeleteBanner(selectedBanner.id, selectedBanner.url);
     } finally {
       setDeleteDialogOpen(false);
       setSelectedBanner(null);
@@ -95,7 +110,7 @@ const ViewBanner = () => {
   const handleStatusChange = async (bannerId, currentStatus) => {
     try {
       const newStatus =
-        currentStatus === 'published' ? 'unpublished' : 'published';
+        currentStatus === 'PUBLISHED' ? 'UNPUBLISHED' : 'PUBLISHED';
       const response = await axiosInstance.patch(
         `/banners/toggle-status/${bannerId}`,
         {
@@ -106,7 +121,7 @@ const ViewBanner = () => {
       if (response.data.success) {
         setBanners((prevBanners) =>
           prevBanners.map((banner) =>
-            banner._id === bannerId ? { ...banner, status: newStatus } : banner
+            banner.id === bannerId ? { ...banner, status: newStatus } : banner
           )
         );
 
@@ -153,7 +168,7 @@ const ViewBanner = () => {
 
       {/* Loading state */}
       {loading ? (
-        <CircularProgress size={24} />
+        <CircularProgress size={24} color='secondary'/>
       ) : (
         <TableContainer component={Paper} sx={{ boxShadow: 3 }}>
           <Table>
@@ -177,23 +192,23 @@ const ViewBanner = () => {
                         width="100%"
                       />
                     </TableCell>
-                    <TableCell>{banner.title || 'Untitled'}</TableCell>
+                    <TableCell>{banner.titleEn || 'Untitled'}</TableCell>
                     <TableCell>{banner.uploadedBy.username}</TableCell>
                     <TableCell>
                       <FormControlLabel
                         control={
                           <Switch
-                            checked={banner.status === 'published'}
+                            checked={banner.status === 'PUBLISHED'}
                             onChange={() =>
-                              handleStatusChange(banner._id, banner.status)
+                              handleStatusChange(banner.id, banner.status)
                             }
                             color="secondary"
                           />
                         }
                         label={
-                          banner.status === 'published'
-                            ? 'Published'
-                            : 'Unpublished'
+                          banner.status === 'PUBLISHED'
+                            ? 'PUBLISHED'
+                            : 'UNPUBLISHED'
                         }
                       />
                     </TableCell>

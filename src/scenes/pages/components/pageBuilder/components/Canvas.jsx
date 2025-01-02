@@ -6,7 +6,7 @@ import blocksBasic from 'grapesjs-blocks-basic';
 import axiosInstance from '../../../../../utils/axios.config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid'; // To generate unique file names
-import { storage } from '../../../../../utils/firebaseConfig'; // Import initialized storage
+import { storage } from '../../../../../services/firebaseConfig'; // Import initialized storage
 
 // Add this function before the Canvas component
 const setupImageHandling = (editor, saveTemplate) => {

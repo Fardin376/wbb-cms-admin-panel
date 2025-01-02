@@ -40,34 +40,28 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
       const slug = slugify(values.title.en, { lower: true });
       
       const menuData = {
-        title: {
-          en: values.title.en.trim(),
-          bn: values.title.bn.trim()
-        },
+        titleEn: values.title.en.trim(),
+        titleBn: values.title.bn.trim(),
         slug,
-        parentId: values.parentId || null,
+        parentId: values.parentId ? Number(values.parentId) : null, // Ensure parentId is number
         isExternalLink: Boolean(values.isExternalLink),
         url: values.isExternalLink ? values.url : null,
         isActive: Boolean(values.isActive),
         order: Number(values.order) || 0
       };
 
-      Object.keys(menuData).forEach(key => 
-        menuData[key] === null && delete menuData[key]
-      );
-
-      const endpoint = menuItemToEdit?._id 
-        ? `/menu/update-menu/${menuItemToEdit._id}`
+      const endpoint = menuItemToEdit?.id  // Change _id to id
+        ? `/menu/update-menu/${menuItemToEdit.id}`
         : '/menu/create-menu';
       
-      const response = await axiosInstance[menuItemToEdit?._id ? 'patch' : 'post'](
+      const response = await axiosInstance[menuItemToEdit?.id ? 'patch' : 'post'](
         endpoint,
         menuData
       );
 
       setSnackbar({
         open: true,
-        message: `Menu item ${menuItemToEdit?._id ? 'updated' : 'created'} successfully!`,
+        message: `Menu item ${menuItemToEdit?.id ? 'updated' : 'created'} successfully!`,
         severity: 'success'
       });
       onSave(response.data);
@@ -89,30 +83,12 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
     title: Yup.object({
       en: Yup.string()
         .required('English title is required')
-        .test('unique-title', 'This menu title already exists', 
-          async function(value) {
-            if (!value) return true;
-            try {
-              const response = await axiosInstance.get(`/menu/check-title?title=${encodeURIComponent(value)}&lang=en${menuItemToEdit?._id ? `&excludeId=${menuItemToEdit._id}` : ''}`);
-              return response.data.isUnique;
-            } catch (error) {
-              return true; // Allow frontend submission, let backend handle error
-            }
-          }
-        ),
+        .min(1, 'Title must not be empty')
+        .max(200, 'Title must be at most 200 characters'),
       bn: Yup.string()
         .required('Bengali title is required')
-        .test('unique-title', 'This menu title already exists', 
-          async function(value) {
-            if (!value) return true;
-            try {
-              const response = await axiosInstance.get(`/menu/check-title?title=${encodeURIComponent(value)}&lang=bn${menuItemToEdit?._id ? `&excludeId=${menuItemToEdit._id}` : ''}`);
-              return response.data.isUnique;
-            } catch (error) {
-              return true;
-            }
-          }
-        )
+        .min(1, 'Title must not be empty')
+        .max(200, 'Title must be at most 200 characters')
     }),
     url: Yup.string().when('isExternalLink', {
       is: true,
@@ -122,12 +98,12 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
         .matches(/^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/, 'Invalid URL format'),
       otherwise: () => Yup.mixed().nullable()
     }),
-    parentId: Yup.string()
+    parentId: Yup.number()  // Change to number
       .nullable()
       .test('no-self-parent', 'A menu item cannot be its own parent or child', 
         function(value) {
           if (!value || !menuItemToEdit) return true;
-          return value !== menuItemToEdit._id;
+          return value !== menuItemToEdit.id;  // Change _id to id
       }),
     isExternalLink: Yup.boolean(),
     isActive: Yup.boolean(),
@@ -137,8 +113,8 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
   const formik = useFormik({
     initialValues: {
       title: { 
-        en: menuItemToEdit?.title?.en || '', 
-        bn: menuItemToEdit?.title?.bn || '' 
+        en: menuItemToEdit?.titleEn || '', 
+        bn: menuItemToEdit?.titleBn || '' 
       },
       parentId: menuItemToEdit?.parentId || '',
       isExternalLink: menuItemToEdit?.isExternalLink || false,
@@ -156,7 +132,7 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
       .filter((item) => item.parentId === parentId)
       .map((item) => ({
         ...item,
-        children: buildMenuHierarchy(items, item._id),
+        children: buildMenuHierarchy(items, item.id), // Change _id to id
       }));
   };
 
@@ -208,57 +184,32 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
     }
   }, [formik.values.title.en, formik.values.parentId]);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    if (name === 'titleEn' || name === 'titleBn') {
-      // Handle nested title object
-      const language = name === 'titleEn' ? 'en' : 'bn';
-      setFormData((prev) => ({
-        ...prev,
-        title: {
-          ...prev.title,
-          [language]: value
-        }
-      }));
-    } else {
-      // Handle other fields
-      setFormData((prev) => ({
-        ...prev,
-        [name]: type === 'checkbox' ? checked : value,
-      }));
-    }
-  };
-
   const filterValidParentOptions = (items, currentMenuId) => {
-    // Check if an item is the current menu or its descendant
     const isInvalidParent = (item) => {
       if (!item) return false;
-      if (item._id === currentMenuId) return true;
-      if (item.parentId === currentMenuId) return true; // Check direct child
+      if (item.id === currentMenuId) return true; // Change _id to id
+      if (item.parentId === currentMenuId) return true;
       return item.children?.some(child => isInvalidParent(child));
     };
 
-    // Filter out the current item and all its descendants
     return items.filter(item => !isInvalidParent(item));
   };
 
   const renderMenuOptions = (items = [], depth = 0) => {
-    // Filter out invalid parent options when editing
     const validItems = menuItemToEdit 
-      ? filterValidParentOptions(items, menuItemToEdit._id)
+      ? filterValidParentOptions(items, menuItemToEdit.id) // Change _id to id
       : items;
 
     return validItems.reduce((acc, item) => {
       acc.push(
         <MenuItem
-          key={item._id}
-          value={item._id}
+          key={item.id} // Change _id to id
+          value={item.id} // Change _id to id
           style={{
             paddingLeft: depth * 20,
           }}
         >
-          {item.title.en}
+          {item.titleEn} {/* Change title.en to titleEn */}
         </MenuItem>
       );
       if (item.children?.length > 0) {
@@ -317,14 +268,15 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
             color="info"
           />
 
-          <FormControl fullWidth>
+          <FormControl fullWidth color="info">
             <InputLabel>Parent Menu</InputLabel>
             <Select
               name="parentId"
-              value={formik.values.parentId === null ? '' : formik.values.parentId}
+              value={
+                formik.values.parentId === null ? '' : formik.values.parentId
+              }
               onChange={formik.handleChange}
               error={formik.touched.parentId && Boolean(formik.errors.parentId)}
-              color="info"
             >
               <MenuItem value="" style={{ fontStyle: 'italic' }}>
                 None
@@ -401,18 +353,27 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
               sx={{ width: '20%', borderRadius: 100 }}
             >
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                {loading ? <CircularProgress size={24} /> : menuItemToEdit ? 'Update Menu' : 'Create Menu'}
+                {loading ? (
+                  <CircularProgress size={24} />
+                ) : menuItemToEdit ? (
+                  'Update Menu'
+                ) : (
+                  'Create Menu'
+                )}
               </Typography>
             </Button>
           </Box>
 
-          {(snackbar.open) && (
+          {snackbar.open && (
             <Snackbar
               open={snackbar.open}
               autoHideDuration={6000}
               onClose={() => setSnackbar({ ...snackbar, open: false })}
             >
-              <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+              <Alert
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                severity={snackbar.severity}
+              >
                 {snackbar.message}
               </Alert>
             </Snackbar>
@@ -426,17 +387,15 @@ const MenuForm = ({ onSave, menuItemToEdit }) => {
 MenuForm.propTypes = {
   onSave: PropTypes.func,
   menuItemToEdit: PropTypes.shape({
-    title: PropTypes.shape({
-      en: PropTypes.string.isRequired,
-      bn: PropTypes.string.isRequired,
-    }).isRequired,
-    slug: PropTypes.string.isRequired,
+    id: PropTypes.number, // Change _id to id and type to number
+    titleEn: PropTypes.string, // Change nested title object to separate fields
+    titleBn: PropTypes.string,
+    slug: PropTypes.string,
     url: PropTypes.string,
     isExternalLink: PropTypes.bool,
     isActive: PropTypes.bool,
-    parentId: PropTypes.oneOfType([PropTypes.string, PropTypes.oneOf([null])]),
-    order: PropTypes.number,
-    _id: PropTypes.string,
+    parentId: PropTypes.number, // Change type to number
+    order: PropTypes.number
   }),
 };
 

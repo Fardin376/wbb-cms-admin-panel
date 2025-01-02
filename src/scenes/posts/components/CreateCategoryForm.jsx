@@ -71,25 +71,27 @@ const CreateCategoryForm = ({ category, onClose }) => {
     type: Yup.string()
       .required('Category type is required')
       .oneOf(
-        ['research', 'publications', 'news', 'articles', 'other'],
-        'Type must be one of: research, publications, news, articles, other'
+        ['NEWS', 'ARTICLES', 'RESEARCH', 'PUBLICATIONS', 'OTHER'],
+        'Invalid category type'
       ),
     createdBy: Yup.string().required('Creator is required'),
   });
 
+  const categoryTypes = {
+    NEWS: { en: 'News', bn: 'সংবাদ' },
+    ARTICLES: { en: 'Articles', bn: 'প্রবন্ধ' },
+    RESEARCH: { en: 'Research', bn: 'গবেষণা' },
+    PUBLICATIONS: { en: 'Publications', bn: 'প্রকাশনা' },
+    OTHER: { en: 'Other', bn: 'অন্যান্য' },
+  };
+
   const getDefaultCategoryName = (type) => {
-    const categoryNames = {
-      research: { en: 'Research', bn: 'গবেষণা' },
-      publications: { en: 'Publications', bn: 'প্রকাশনা' },
-      news: { en: 'News', bn: 'সংবাদ' },
-      articles: { en: 'Articles', bn: 'প্রবন্ধ' },
-    };
-    return categoryNames[type] || { en: '', bn: '' };
+    return categoryTypes[type] || { en: '', bn: '' };
   };
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
-      if (user?.role !== 'admin' && user?.role !== 'superadmin') {
+      if (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN') {
         handleSnackbar('You are not authorized to create categories', 'error');
         return;
       }
@@ -104,7 +106,9 @@ const CreateCategoryForm = ({ category, onClose }) => {
         return;
       }
 
-      const categoriesArray = Array.isArray(existingCategories) ? existingCategories : [];
+      const categoriesArray = Array.isArray(existingCategories)
+        ? existingCategories
+        : [];
 
       const isCategoryExists = categoriesArray.some(
         (cat) =>
@@ -117,14 +121,23 @@ const CreateCategoryForm = ({ category, onClose }) => {
         return;
       }
 
+      const formattedValues = {
+        nameEn: values.name.en,
+        nameBn: values.name.bn,
+        type: values.type,
+        userId: user.id,
+      };
+
       setLoading(true);
       const endpoint = category
-        ? `update/${category._id}`
+        ? `categories/${category.id}`
         : 'create-categories';
-      const response = await axiosInstance.post(`/categories/${endpoint}`, {
-        ...values,
-        createdBy: user?.id,
-      });
+      const method = category ? 'put' : 'post';
+
+      const response = await axiosInstance[method](
+        `/categories/${endpoint}`,
+        formattedValues
+      );
 
       if (response.data.success) {
         handleSnackbar(
@@ -139,7 +152,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
       console.error('Error saving category:', error);
       handleSnackbar(
         `Failed to ${category ? 'update' : 'create'} category: ${
-          error.message
+          error.response?.data?.message
         }`,
         'error'
       );
@@ -177,7 +190,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
 
   const handleTypeChange = (e) => {
     const selectedType = e.target.value;
-    if (selectedType !== 'other') {
+    if (selectedType !== 'OTHER') {
       const defaultName = getDefaultCategoryName(selectedType);
       formik.setValues({
         ...formik.values,
@@ -244,7 +257,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
         <FormControl
           fullWidth
           sx={{ mb: 2 }}
-          disabled={user?.role !== 'admin' && user?.role !== 'superadmin'}
+          disabled={user.role !== 'ADMIN' && user.role !== 'SUPERADMIN'}
         >
           <InputLabel>Type</InputLabel>
           <Select
@@ -254,11 +267,11 @@ const CreateCategoryForm = ({ category, onClose }) => {
             onChange={handleTypeChange}
             error={formik.touched.type && Boolean(formik.errors.type)}
           >
-            <MenuItem value="research">Research</MenuItem>
-            <MenuItem value="publications">Publications</MenuItem>
-            <MenuItem value="news">News</MenuItem>
-            <MenuItem value="articles">Articles</MenuItem>
-            <MenuItem value="other">Other</MenuItem>
+            {Object.entries(categoryTypes).map(([key, names]) => (
+              <MenuItem key={key} value={key}>
+                {names.en} / {names.bn}
+              </MenuItem>
+            ))}
           </Select>
           {formik.touched.type && formik.errors.type && (
             <FormHelperText error>{formik.errors.type}</FormHelperText>
@@ -273,7 +286,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
           helperText={formik.touched.name?.en && formik.errors.name?.en}
           fullWidth
           color="info"
-          disabled={formik.values.type !== 'other'}
+          disabled={formik.values.type !== 'OTHER'}
         />
         <TextField
           label="Category Name (Bangla)"
@@ -284,7 +297,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
           helperText={formik.touched.name?.bn && formik.errors.name?.bn}
           fullWidth
           color="info"
-          disabled={formik.values.type !== 'other'}
+          disabled={formik.values.type !== 'OTHER'}
         />
         <TextField
           label="Creator"
@@ -294,7 +307,6 @@ const CreateCategoryForm = ({ category, onClose }) => {
           }}
           fullWidth
           color="info"
-          sx={{ mb: 2 }}
         />
 
         <Box sx={{ mb: 2 }}>
@@ -314,7 +326,7 @@ const CreateCategoryForm = ({ category, onClose }) => {
           </Typography>
         </Box>
 
-        {user?.role !== 'admin' && user?.role !== 'superadmin' ? (
+        {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' ? (
           <Typography color="error">
             You are not authorized to create categories
           </Typography>

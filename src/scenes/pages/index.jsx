@@ -25,7 +25,6 @@ import { Add, Edit, Delete } from '@mui/icons-material';
 import CreatePageForm from './components/createPages/CreatePageForm';
 import PageBuilder from './components/pageBuilder';
 import { tokens } from '../../theme';
-import { StatusToggle } from '../../components';
 import axiosInstance from '../../utils/axios.config';
 import { useSnackbar } from 'notistack';
 
@@ -77,45 +76,29 @@ const ViewPages = () => {
     fetchPages(); // Refresh the list after closing PageBuilder
   };
 
-  const handleStatusToggle = async (pageId, currentStatus) => {
-    try {
-      const response = await axiosInstance.patch(
-        `/pages/toggle-status/${pageId}`,
-        { isActive: !currentStatus }
-      );
-
-      if (response.data.success) {
-        setPages((prevPages) =>
-          prevPages.map((page) =>
-            page._id === pageId ? { ...page, isActive: !currentStatus } : page
-          )
-        );
-        enqueueSnackbar('Status updated successfully', { variant: 'success' });
-      }
-    } catch (error) {
-      console.error('Error toggling status:', error);
-      enqueueSnackbar('Failed to update status', { variant: 'error' });
-    }
-  };
-
   const handleStatusChange = async (pageId, newStatus) => {
     try {
       const response = await axiosInstance.patch(
         `/pages/update-status/${pageId}`,
-        { status: newStatus }
+        { status: newStatus.toUpperCase() }
       );
 
       if (response.data.success) {
         setPages((prevPages) =>
           prevPages.map((page) =>
-            page._id === pageId ? { ...page, status: newStatus } : page
+            page.id === pageId
+              ? { ...page, status: newStatus.toUpperCase() }
+              : page
           )
         );
         enqueueSnackbar('Status updated successfully', { variant: 'success' });
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      enqueueSnackbar('Failed to update status', { variant: 'error' });
+      enqueueSnackbar(
+        error.response?.data?.message || 'Failed to update status',
+        { variant: 'error' }
+      );
     }
   };
 
@@ -143,9 +126,8 @@ const ViewPages = () => {
 
       if (response.data.success) {
         setPages((prevPages) =>
-          prevPages.filter((page) => page._id !== pageToDelete._id)
+          prevPages.filter((page) => page.id !== pageToDelete.id)
         );
-        
       }
     } catch (error) {
       console.error('Error deleting page:', error);
@@ -158,7 +140,10 @@ const ViewPages = () => {
     } finally {
       setDeleteDialogOpen(false);
       setPageToDelete(null);
-      enqueueSnackbar('Page deleted successfully', { variant: 'success', autoHideDuration: 3000 });
+      enqueueSnackbar('Page deleted successfully', {
+        variant: 'success',
+        autoHideDuration: 3000,
+      });
       fetchPages();
     }
   };
@@ -194,7 +179,7 @@ const ViewPages = () => {
                 </TableHead>
                 <TableBody>
                   {pages.map((page) => (
-                    <TableRow key={page._id}>
+                    <TableRow key={page.id}>
                       <TableCell>{page.name}</TableCell>
                       <TableCell>{page.slug}</TableCell>
                       <TableCell>{page.layout?.name || 'No Layout'}</TableCell>
@@ -202,24 +187,16 @@ const ViewPages = () => {
                         <Box display="flex" alignItems="center" gap={2}>
                           <FormControl size="small" sx={{ minWidth: 120 }}>
                             <Select
-                              value={page.status}
+                              value={page.status || 'DRAFT'}
                               onChange={(e) =>
-                                handleStatusChange(page._id, e.target.value)
+                                handleStatusChange(page.id, e.target.value)
                               }
                             >
-                              <MenuItem value="draft">Draft</MenuItem>
-                              <MenuItem value="published">Published</MenuItem>
-                              <MenuItem value="archived">Archived</MenuItem>
+                              <MenuItem value="DRAFT">Draft</MenuItem>
+                              <MenuItem value="PUBLISHED">Published</MenuItem>
+                              <MenuItem value="ARCHIVED">Archived</MenuItem>
                             </Select>
                           </FormControl>
-                          <StatusToggle
-                            isActive={page.isActive}
-                            itemId={page._id}
-                            endpoint="pages"
-                            onToggle={() =>
-                              handleStatusToggle(page._id, page.isActive)
-                            }
-                          />
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -247,7 +224,7 @@ const ViewPages = () => {
                         <Button
                           variant="contained"
                           color="secondary"
-                          onClick={() => openPageBuilder(page._id)}
+                          onClick={() => openPageBuilder(page.id)}
                         >
                           Open PageBuilder
                         </Button>
@@ -265,10 +242,7 @@ const ViewPages = () => {
 
       {showForm && (
         <Box>
-          <CreatePageForm
-            page={editingPage}
-            onClose={handleFormClose}
-          />
+          <CreatePageForm page={editingPage} onClose={handleFormClose} />
         </Box>
       )}
 

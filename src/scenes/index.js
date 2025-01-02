@@ -10,9 +10,8 @@ import ViewGallery from './gallery';
 import ViewBanner from './bannerWidget';
 import ViewPdfs from './filesAndLinks';
 import ViewFooterLinks from './footerLinks';
-import Contacts from './contacts';
+import ViewSocialLinks from './socialLinks';
 import Form from './form';
-import FAQ from './faq';
 import Login from './login';
 
 export {
@@ -28,8 +27,7 @@ export {
   ViewBanner,
   ViewPdfs,
   ViewFooterLinks,
-  Contacts,
+  ViewSocialLinks,
   Form,
-  FAQ,
   Login,
 };

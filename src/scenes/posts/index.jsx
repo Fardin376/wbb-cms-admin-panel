@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -20,8 +20,17 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  ImageList,
+  ImageListItem,
 } from '@mui/material';
-import { Edit, Delete, Add, Star, StarBorder } from '@mui/icons-material';
+import {
+  Edit,
+  Delete,
+  Add,
+  Star,
+  StarBorder,
+  Image,
+} from '@mui/icons-material';
 import axiosInstance from '../../utils/axios.config';
 import { tokens } from '../../theme';
 import CreatePostForm from './components/CreatePostForm';
@@ -30,6 +39,19 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { useSnackbar } from 'notistack';
+import { ref, deleteObject } from 'firebase/storage';
+import { storage } from '../../services/firebaseConfig';
+
+const extractImageUrls = (content) => {
+  const regex = /<img[^>]+src="([^">]+)"/g;
+  const urls = [];
+  let match;
+  while ((match = regex.exec(content))) {
+    urls.push(match[1]);
+  }
+  console.log('Extracted URLs:', urls); // Debugging
+  return urls;
+};
 
 const PostList = () => {
   const [posts, setPosts] = useState([]);
@@ -48,6 +70,9 @@ const PostList = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [imageUrls, setImageUrls] = useState([]);
+  const [isDialogOpen, setDialogOpen] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
 
   // Add category fetching
@@ -65,6 +90,21 @@ const PostList = () => {
     };
     fetchCategories();
   }, []);
+
+  // Add pages fetching
+  useEffect(() => {
+    const fetchPages = async () => {
+      try {
+        const response = await axiosInstance.get('/pages/all-pages');
+        setPages(response.data.pages || []);
+      } catch (error) {
+        console.error('Error fetching pages:', error);
+        enqueueSnackbar('Failed to load pages', { variant: 'error' });
+      }
+    };
+
+    fetchPages();
+  }, [enqueueSnackbar]);
 
   // Update the category filter handler
   const handleCategoryChange = (e) => {
@@ -121,21 +161,82 @@ const PostList = () => {
   };
 
   // Add these functions
-  const handleEditPost = (post) => {
-    setEditingPost(post);
-    setShowForm(true);
+  const handleEditPost = (postId) => {
+    const postToEdit = posts.find((p) => p.id === postId);
+    if (postToEdit) {
+      const formattedPost = {
+        ...postToEdit,
+        title: {
+          en: postToEdit.titleEn,
+          bn: postToEdit.titleBn,
+        },
+        content: {
+          en: postToEdit.contentEn,
+          bn: postToEdit.contentBn,
+        },
+        id: postToEdit.id,
+        pageIds: postToEdit.pages.map((page) => page.id),
+        categoryId: postToEdit.categoryId,
+      };
+      setEditingPost(formattedPost);
+      setShowForm(true);
+    }
   };
 
-  const handleDeletePost = (post) => {
-    setPostToDelete(post);
-    setDeleteDialogOpen(true);
+  const confirmDelete = useCallback((post) => {
+    if (post.isFeatured) {
+      return window.confirm(
+        'This is a featured post. Are you sure you want to delete it? This action cannot be undone.'
+      );
+    }
+    return window.confirm(
+      'Are you sure you want to delete this post? This action cannot be undone.'
+    );
+  }, []);
+
+  const handleDeletePost = useCallback(
+    (post) => {
+      if (confirmDelete(post)) {
+        setPostToDelete(post);
+        setDeleteDialogOpen(true);
+      }
+    },
+    [confirmDelete]
+  );
+
+  const deleteFirebaseImages = async (imageUrls) => {
+    for (const url of imageUrls) {
+      try {
+        // Extract the path from the Firebase URL
+        const decodedUrl = decodeURIComponent(url);
+        const startIndex = decodedUrl.indexOf('/o/') + 3;
+        const endIndex = decodedUrl.indexOf('?');
+        const fullPath = decodedUrl.substring(startIndex, endIndex);
+
+        // Create reference and delete
+        const imageRef = ref(storage, fullPath);
+        await deleteObject(imageRef);
+      } catch (error) {
+        console.error('Error deleting image from Firebase:', error);
+      }
+    }
   };
 
   const handleDeleteConfirm = async () => {
     try {
-      await axiosInstance.delete(`/posts/delete/${postToDelete._id}`);
+      const response = await axiosInstance.delete(
+        `/posts/delete/${postToDelete.id}`
+      );
+
+      if (response.data.success && response.data.imageUrls?.length > 0) {
+        // Delete images from Firebase storage
+        await deleteFirebaseImages(response.data.imageUrls);
+      }
+
       await fetchPosts();
-      enqueueSnackbar('Post deleted successfully', { variant: 'success' });
+      enqueueSnackbar('Post and associated images deleted successfully', {
+        variant: 'success',
+      });
     } catch (error) {
       console.error('Error deleting post:', error);
       enqueueSnackbar(
@@ -151,20 +252,25 @@ const PostList = () => {
     }
   };
 
-  const handleStatusChange = async (postId, currentStatus) => {
+  const handleStatusChange = async (postId, newStatus) => {
     try {
-      const response = await axiosInstance.patch(`/posts/toggle-status/${postId}`, {
-        isActive: !currentStatus
-      });
+      const response = await axiosInstance.patch(
+        `/posts/update-status/${postId}`,
+        {
+          status: newStatus,
+        }
+      );
 
       if (response.data.success) {
-        setPosts(posts.map(post => 
-          post._id === postId ? { ...post, isActive: !currentStatus } : post
-        ));
-        
-        enqueueSnackbar('Post status updated successfully', {
+        setPosts(
+          posts.map((post) =>
+            post.id === postId ? { ...post, status: newStatus } : post
+          )
+        );
+
+        enqueueSnackbar(`Post status changed to ${getStatusLabel(newStatus)}`, {
           variant: 'success',
-          autoHideDuration: 3000
+          autoHideDuration: 3000,
         });
       }
     } catch (error) {
@@ -178,22 +284,25 @@ const PostList = () => {
 
   const handleFeaturedChange = async (postId, currentFeatured) => {
     try {
-      const response = await axiosInstance.patch(`/posts/toggle-featured/${postId}`, {
-        isFeatured: !currentFeatured
-      });
+      const response = await axiosInstance.patch(
+        `/posts/toggle-featured/${postId}`,
+        {
+          isFeatured: !currentFeatured,
+        }
+      );
 
       if (response.data.success) {
-        setPosts(prevPosts => 
-          prevPosts.map(post => 
-            post._id === postId 
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId
               ? { ...post, isFeatured: !currentFeatured }
               : post
           )
         );
-        
+
         enqueueSnackbar('Featured status updated successfully', {
           variant: 'success',
-          autoHideDuration: 3000
+          autoHideDuration: 3000,
         });
 
         await fetchPosts();
@@ -207,90 +316,162 @@ const PostList = () => {
     }
   };
 
-  // Update FormControl for category filter
-  return (
-    <ErrorBoundary>
-      <Box sx={{ m: 2 }}>
-        {/* Page selector */}
-        <FormControl sx={{ mb: 2, minWidth: 200 }}>
-          <InputLabel>Filter by Page</InputLabel>
-          <Select
-            value={selectedPage}
-            color="info"
-            onChange={(e) => setSelectedPage(e.target.value)}
-          >
-            <MenuItem value="">All Pages</MenuItem>
-            {pages.map((page) => (
-              <MenuItem key={page._id} value={page._id}>
-                {page.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl sx={{ mb: 2, ml: 2, minWidth: 200 }}>
-          <InputLabel>Filter by Category</InputLabel>
-          <Select
-            value={selectedCategory}
-            color="info"
-            onChange={handleCategoryChange}
-          >
-            <MenuItem value="">All Categories</MenuItem>
-            {categories.map((category) => (
-              <MenuItem key={category._id} value={category._id}>
-                {category.name.en}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+  const categoryTypeColors = {
+    NEWS: '#2196f3', // Blue
+    ARTICLES: '#4caf50', // Green
+    RESEARCH: '#9c27b0', // Purple
+    PUBLICATIONS: '#ff9800', // Orange
+    OTHER: '#757575', // Grey
+  };
 
-        {/* Create buttons */}
-        {!showForm && !showCategoryForm && (
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={() => setShowCategoryForm(true)}
-              startIcon={<Add />}
+  const getStatusLabel = (status) => {
+    const labels = {
+      DRAFT: 'Draft',
+      PUBLISHED: 'Published',
+      UNPUBLISHED: 'Unpublished',
+      ARCHIVED: 'Archived',
+    };
+    return labels[status] || status;
+  };
+
+  const getStatusChipColor = (status) => {
+    const colors = {
+      DRAFT: '#757575', // Grey
+      PUBLISHED: '#4caf50', // Green
+      UNPUBLISHED: '#f44336', // Red
+      ARCHIVED: '#9e9e9e', // Dark Grey
+    };
+    return colors[status] || colors.DRAFT;
+  };
+
+  const handleOpenDialog = (post) => {
+    const urls = extractImageUrls(post.contentEn || post.contentBn); // Check contentEn for now
+    console.log('Opening dialog with URLs:', urls); // Debugging
+    setImageUrls(urls);
+    setSelectedPost(post);
+    setDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setSelectedPost(null);
+    setImageUrls([]);
+  };
+
+  const handleSetCoverImage = async (url) => {
+    if (selectedPost) {
+      try {
+        const response = await axiosInstance.patch(
+          `/posts/${selectedPost.id}/set-cover-image`,
+          { coverImage: url }
+        );
+
+        if (response.data.success) {
+          enqueueSnackbar('Cover image updated successfully', {
+            variant: 'success',
+          });
+
+          // Update the post in the local state
+          setPosts((prevPosts) =>
+            prevPosts.map((post) =>
+              post.id === selectedPost.id ? { ...post, coverImage: url } : post
+            )
+          );
+        } else {
+          enqueueSnackbar('Failed to update cover image', { variant: 'error' });
+        }
+      } catch (error) {
+        console.error('Error setting cover image:', error);
+        enqueueSnackbar('Error setting cover image', { variant: 'error' });
+      } finally {
+        handleCloseDialog();
+      }
+    }
+  };
+
+  // Render condition for the main content
+  const renderMainContent = () => {
+    if (showForm) {
+      return (
+        <ErrorBoundary>
+          <CreatePostForm
+            post={editingPost}
+            onClose={handleFormClose}
+            pageId={selectedPage}
+          />
+        </ErrorBoundary>
+      );
+    }
+
+    if (showCategoryForm) {
+      return (
+        <ErrorBoundary>
+          <CreateCategoryForm
+            onClose={handleCategoryFormClose}
+            pageId={selectedPage}
+          />
+        </ErrorBoundary>
+      );
+    }
+
+    return (
+      <>
+        {/* Filters and buttons */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+          <FormControl sx={{ minWidth: 200 }} color="info">
+            <InputLabel>Filter by Page</InputLabel>
+            <Select
+              label="Filter by Page"
+              value={selectedPage}
+              onChange={(e) => setSelectedPage(e.target.value)}
             >
-              Add Category
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleCreatePost}
-              startIcon={<Add />}
+              <MenuItem value="">All Pages</MenuItem>
+              {pages.map((page) => (
+                <MenuItem key={page.id} value={page.id}>
+                  {page.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 200 }} color="info">
+            <InputLabel>Filter by Category</InputLabel>
+            <Select
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              label="Filter by Category"
             >
-              Create Post
-            </Button>
-          </Box>
-        )}
+              <MenuItem value="">All Categories</MenuItem>
+              {categories.map((category) => (
+                <MenuItem key={category.id} value={category.id}>
+                  {category.nameEn}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => setShowCategoryForm(true)}
+            startIcon={<Add />}
+          >
+            Add Category
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleCreatePost}
+            startIcon={<Add />}
+          >
+            Create Post
+          </Button>
+        </Box>
 
-        {/* Forms */}
-        {showCategoryForm && (
-          <ErrorBoundary>
-            <CreateCategoryForm
-              onClose={handleCategoryFormClose}
-              pageId={selectedPage}
-            />
-          </ErrorBoundary>
-        )}
-        {showForm && (
-          <ErrorBoundary>
-            <CreatePostForm
-              post={editingPost}
-              onClose={handleFormClose}
-              pageId={selectedPage}
-            />
-          </ErrorBoundary>
-        )}
-
-        {error && (
+        {/* Posts Table */}
+        {error ? (
           <Typography color="error" sx={{ mb: 2 }}>
             {error}
           </Typography>
-        )}
-
-        {loading ? (
+        ) : loading ? (
           <Typography>Loading...</Typography>
         ) : (
           <TableContainer component={Paper}>
@@ -299,6 +480,7 @@ const PostList = () => {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 'bold' }}>Title (EN)</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Categories</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Cover Image</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Page</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Author Role</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
@@ -309,31 +491,100 @@ const PostList = () => {
               <TableBody>
                 {posts &&
                   posts.map((post) => (
-                    <TableRow key={post._id}>
-                      <TableCell>{post.title?.en || 'N/A'}</TableCell>
-                      <TableCell>{post.category?.name?.en || 'N/A'}</TableCell>
+                    <TableRow key={post.id}>
+                      <TableCell>{post.titleEn || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              backgroundColor:
+                                categoryTypeColors[post.category?.type] ||
+                                categoryTypeColors.OTHER,
+                            }}
+                          />
+                          {post.category?.nameEn || 'N/A'}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        {post.coverImage ? (
+                          <img
+                            src={post.coverImage}
+                            alt="Cover"
+                            style={{
+                              width: 50,
+                              height: 50,
+                              objectFit: 'cover',
+                              borderRadius: 4,
+                            }}
+                          />
+                        ) : (
+                          'No Cover Image'
+                        )}
+                      </TableCell>
                       <TableCell>
                         {post.pages.map((page) => page.name).join(', ') ||
                           'N/A'}
                       </TableCell>
                       <TableCell>{post.createdBy?.role || 'N/A'}</TableCell>
                       <TableCell>
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={Boolean(post.isActive)}
-                              onChange={() =>
-                                handleStatusChange(post._id, post.isActive)
-                              }
-                              color="secondary"
-                            />
-                          }
-                          label={post.isActive ? 'Active' : 'Inactive'}
-                        />
+                        <FormControl fullWidth size="small">
+                          <Select
+                            value={post.status}
+                            onChange={(e) =>
+                              handleStatusChange(post.id, e.target.value)
+                            }
+                            sx={{
+                              '.MuiSelect-select': {
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                              },
+                            }}
+                          >
+                            {[
+                              'DRAFT',
+                              'PUBLISHED',
+                              'UNPUBLISHED',
+                              'ARCHIVED',
+                            ].map((status) => (
+                              <MenuItem key={status} value={status}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: '50%',
+                                      backgroundColor:
+                                        getStatusChipColor(status),
+                                    }}
+                                  />
+                                  {getStatusLabel(status)}
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </TableCell>
                       <TableCell>
                         <IconButton
-                          onClick={() => handleFeaturedChange(post._id, post.isFeatured)}
+                          onClick={() =>
+                            handleFeaturedChange(post.id, post.isFeatured)
+                          }
                           color="secondary"
                         >
                           {Boolean(post.isFeatured) ? <Star /> : <StarBorder />}
@@ -342,7 +593,7 @@ const PostList = () => {
                       <TableCell>
                         <IconButton
                           color="info"
-                          onClick={() => handleEditPost(post)}
+                          onClick={() => handleEditPost(post.id)}
                           sx={{
                             color: colors.primary,
                             '&:hover': {
@@ -358,6 +609,9 @@ const PostList = () => {
                         >
                           <Delete />
                         </IconButton>
+                        <IconButton onClick={() => handleOpenDialog(post)}>
+                          <Image fontSize="small" />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -365,7 +619,15 @@ const PostList = () => {
             </Table>
           </TableContainer>
         )}
+      </>
+    );
+  };
 
+  return (
+    <ErrorBoundary>
+      <Box sx={{ m: 2 }}>
+        {renderMainContent()}
+        {/* Delete Dialog stays outside */}
         <Dialog
           open={deleteDialogOpen}
           onClose={() => setDeleteDialogOpen(false)}
@@ -381,8 +643,8 @@ const PostList = () => {
           </DialogTitle>
           <DialogContent>
             <Typography color={colors.gray[100]}>
-              Are you sure you want to delete the post "
-              {postToDelete?.title?.en}"? This action cannot be undone.
+              Are you sure you want to delete the post "{postToDelete?.titleEn}
+              "? This action cannot be undone.
             </Typography>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
@@ -403,6 +665,27 @@ const PostList = () => {
               Delete
             </Button>
           </DialogActions>
+        </Dialog>
+
+        <Dialog open={isDialogOpen} onClose={handleCloseDialog} fullWidth>
+          <DialogTitle>Select a Cover Image</DialogTitle>
+          <DialogContent>
+            <ImageList cols={3} rowHeight={160}>
+              {imageUrls.map((url, index) => (
+                <ImageListItem
+                  key={index}
+                  onClick={() => handleSetCoverImage(url)}
+                >
+                  <img
+                    src={url}
+                    alt={`Cover ${index}`}
+                    loading="lazy"
+                    style={{ cursor: 'pointer' }}
+                  />
+                </ImageListItem>
+              ))}
+            </ImageList>
+          </DialogContent>
         </Dialog>
       </Box>
     </ErrorBoundary>

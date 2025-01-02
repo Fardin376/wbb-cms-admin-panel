@@ -29,14 +29,16 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     try {
       const response = await login({ email, password });
       if (response.success) {
         navigate('/', { replace: true });
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      setError(
+        err.response?.data?.message || 'Login failed. Please try again.'
+      );
       console.error('Login error:', err);
     } finally {
       setLoading(false);
@@ -48,15 +50,13 @@ const Login = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
-
+        minHeight: '100vh',
         display: 'flex',
-        flexShrink: 0,
         alignItems: 'center',
         justifyContent: 'center',
-        background: `url(${background}) repeat`,
-        boxSizing: 'border-box',
-        overflow: 'hidden',
+        backgroundImage: `url(${background})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
       }}
     >
       <Container

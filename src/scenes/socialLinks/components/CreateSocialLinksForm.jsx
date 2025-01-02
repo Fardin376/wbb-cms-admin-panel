@@ -18,22 +18,14 @@ import * as Yup from 'yup';
 import axiosInstance from '../../../utils/axios.config';
 import { useSnackbar } from 'notistack';
 
-const FooterLinksForm = ({ footerLink, onClose }) => {
+const CreateSocialLinksForm = ({ socialLink, onClose }) => {
   const [loading, setLoading] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
 
   const validationSchema = Yup.object({
-    position: Yup.string()
-      .required('Position is required')
-      .oneOf(['LEFT', 'CENTER'], 'Invalid position selected'),
-
-    nameEn: Yup.string().required('Name (English) is required'),
-    nameBn: Yup.string().required('Name (Bangla) is required'),
-
-    url: Yup.string().required('URL is required').url('Invalid URL format'),
-    serial: Yup.number()
-      .required('Serial is required')
-      .min(1, 'Serial must be at least 1'),
+    nameEn: Yup.string().required('Name is required'),
+    nameBn: Yup.string().required('Name is required'),
+    url: Yup.string().required('url is required'),
     status: Yup.string()
       .required('Status is required')
       .oneOf(['PUBLISHED', 'UNPUBLISHED'], 'Invalid status selected'),
@@ -42,10 +34,10 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       setLoading(true);
-      const endpoint = footerLink
-        ? `/links/footer-links/${footerLink.id}`
-        : '/links/create-footer-links';
-      const method = footerLink ? 'patch' : 'post';
+      const endpoint = socialLink
+        ? `/socials/${socialLink.id}`
+        : '/socials/create-social-links';
+      const method = socialLink ? 'patch' : 'post';
 
       const response = await axiosInstance[method](endpoint, values);
 
@@ -58,9 +50,9 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
         );
       }
     } catch (error) {
-      console.error('Error saving footer link:', error);
+      console.error('Error saving route:', error);
       enqueueSnackbar(
-        `Failed to ${footerLink ? 'update' : 'create'} footer link: ${
+        `Failed to ${socialLink ? 'update' : 'create'} route: ${
           error.response?.data?.message || error.message
         }`,
         { variant: 'error' }
@@ -73,12 +65,10 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
 
   const formik = useFormik({
     initialValues: {
-      position: footerLink?.position || '',
-      nameEn: footerLink?.nameEn || '',
-      nameBn: footerLink?.nameBn || '',
-      url: footerLink?.url || '',
-      serial: footerLink?.serial || '',
-      status: footerLink?.status || '',
+      nameEn: socialLink?.nameEn || '',
+      nameBn: socialLink?.nameBn || '',
+      url: socialLink?.url || '',
+      status: socialLink?.status || '',
     },
     validationSchema,
     enableReinitialize: true,
@@ -108,7 +98,7 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
         }}
       >
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          {footerLink ? 'Edit Footer Link' : 'Create Footer Link'}
+          {socialLink ? 'Edit Link' : 'Create Link'}
         </Typography>
         <Button
           variant="contained"
@@ -130,24 +120,6 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
           gap: '16px',
         }}
       >
-        <FormControl fullWidth sx={{ mb: 2 }} color="info">
-          <InputLabel>Position</InputLabel>
-          <Select
-            name="position"
-            label="Position"
-            value={formik.values.position}
-            onChange={formik.handleChange}
-            error={formik.touched.position && Boolean(formik.errors.position)}
-            aria-label="Position"
-          >
-            <MenuItem value="LEFT">Left</MenuItem>
-            <MenuItem value="CENTER">Center</MenuItem>
-          </Select>
-          {formik.touched.position && formik.errors.position && (
-            <FormHelperText error>{formik.errors.position}</FormHelperText>
-          )}
-        </FormControl>
-
         <TextField
           label="Name (English)"
           name="nameEn"
@@ -172,29 +144,17 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
         />
 
         <TextField
-          label="URL"
+          label="Url"
           name="url"
           value={formik.values.url}
           onChange={formik.handleChange}
           error={formik.touched.url && Boolean(formik.errors.url)}
           helperText={formik.touched.url && formik.errors.url}
           fullWidth
-          aria-label="URL"
+          aria-label="Url"
           color="info"
         />
 
-        <TextField
-          label="Serial"
-          name="serial"
-          type="number"
-          value={formik.values.serial}
-          onChange={formik.handleChange}
-          error={formik.touched.serial && Boolean(formik.errors.serial)}
-          helperText={formik.touched.serial && formik.errors.serial}
-          fullWidth
-          aria-label="Serial"
-          color="info"
-        />
         <FormControl fullWidth sx={{ mb: 2 }} color="info">
           <InputLabel>Status</InputLabel>
           <Select
@@ -227,4 +187,4 @@ const FooterLinksForm = ({ footerLink, onClose }) => {
   );
 };
 
-export default FooterLinksForm;
+export default CreateSocialLinksForm;

@@ -18,11 +18,12 @@ import {
   DialogContent,
   DialogTitle,
 } from '@mui/material';
-import { Add, Delete } from '@mui/icons-material';
+import { Add, Delete, Image as ImageIcon } from '@mui/icons-material';
 import axiosInstance from '../../utils/axios.config';
 import { tokens } from '../../theme';
 import ImageUploader from './components/ImageUploader';
 import { useSnackbar } from 'notistack';
+import { deleteFirebaseImage } from '../../services/firebase.utils';
 
 const ViewGallery = () => {
   const [images, setImages] = useState([]);
@@ -55,20 +56,35 @@ const ViewGallery = () => {
     }
   };
 
+  useEffect(() => {
+    getImages();
+  }, []);
+
   // Delete image function
-  const handleDeleteImage = async (imageId) => {
+  const handleDeleteImage = async (image) => {
     try {
-      await axiosInstance.delete(`/gallery/image/${imageId}`);
-      enqueueSnackbar('Image deleted successfully', { variant: 'success' });
-      getImages(); // Refresh image list after delete
+      // Only allow deletion if image has no postId
+      if (image.postId) {
+        enqueueSnackbar('Cannot delete media attached to a post', {
+          variant: 'warning',
+        });
+        return;
+      }
+
+      // Delete from Firebase first
+      await deleteFirebaseImage(image.url);
+
+      // Then delete from database
+      await axiosInstance.delete(`/gallery/image/${image.id}`);
+
+      enqueueSnackbar('Media deleted successfully', { variant: 'success' });
+      getImages(); // Refresh list
     } catch (error) {
+      console.error('Error deleting media:', error);
       enqueueSnackbar(
-        error.response?.data?.message || 'Failed to delete image',
+        error.response?.data?.message || 'Failed to delete media',
         { variant: 'error' }
       );
-      if (error.response?.status === 401) {
-        window.location.href = '/login';
-      }
     }
   };
 
@@ -84,16 +100,12 @@ const ViewGallery = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await handleDeleteImage(selectedImage._id);
+      await handleDeleteImage(selectedImage);
     } finally {
       setDeleteDialogOpen(false);
       setSelectedImage(null);
     }
   };
-
-  useEffect(() => {
-    getImages();
-  }, []);
 
   return (
     <Box sx={{ m: 2 }}>
@@ -106,7 +118,7 @@ const ViewGallery = () => {
           startIcon={<Add />}
           sx={{ marginBottom: '1rem', backgroundColor: colors.primary }}
         >
-          Upload Image
+          Upload Media
         </Button>
       )}
 
@@ -126,62 +138,84 @@ const ViewGallery = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>Image</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Post</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Category</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Media</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>File Name</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Uploaded By</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {images &&
-                images.map((image) => (
-                  <TableRow key={image._id}>
-                    <TableCell width="20%">
-                      <img
-                        src={image.url} // Use the 'url' field to display the image
-                        alt={image.fileName} // 'fileName' can be used for alt text
-                        width="20%"
+              {images?.map((image) => (
+                <TableRow key={image.id}>
+                  <TableCell width="20%">
+                    {image.fileType === 'video' ? (
+                      <video
+                        src={image.url}
+                        controls
+                        style={{ width: '200px' }}
                       />
-                    </TableCell>
-                    <TableCell>
-                      {image.usageTypes.isPost
-                        ? `${
-                            image.usageTypes.postId.title?.en.length > 40
-                              ? image.usageTypes.postId.title.en.substring(
-                                  0,
-                                  40
-                                ) + '...'
-                              : image.usageTypes.postId.title.en
-                          }`
-                        : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {image.usageTypes.isPost &&
-                      image.usageTypes.postId?.category
-                        ? image.usageTypes.postId.category.name?.en ||
-                          'Untitled Category'
-                        : 'N/A'}
-                    </TableCell>
-                    <TableCell>{image.uploadedBy.username}</TableCell>
-                    <TableCell>
-                      {image.status === 'inactive' ? (
-                        <Typography color="error">Inactive</Typography>
-                      ) : (
-                        <Typography color="success">Active</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
+                    ) : (
+                      <img
+                        src={image.url}
+                        alt={image.fileName}
+                        style={{ width: '200px', height: 'auto' }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>{image.fileName}</TableCell>
+                  <TableCell>
+                    <Typography
+                      sx={{
+                        color:
+                          image.fileType === 'video'
+                            ? colors.blueAccent[200]
+                            : colors.greenAccent[200],
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {image.fileType || 'image'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{image.uploadedBy?.role || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Typography
+                      color={
+                        image.status === 'ACTIVE'
+                          ? 'success.main'
+                          : 'error.main'
+                      }
+                    >
+                      {image.status}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDeleteClick(image)}
+                    >
+                      <Delete />
+                    </IconButton>
+                    {image.isPost && image.post && (
                       <IconButton
-                        color="error"
-                        onClick={() => handleDeleteClick(image)}
+                        color="secondary"
+                        onClick={() =>
+                          handleSetAsCover(image.id, image.post.id)
+                        }
+                        disabled={image.isCover}
+                        title={
+                          image.isCover
+                            ? 'Already cover image'
+                            : 'Set as cover image'
+                        }
                       >
-                        <Delete />
+                        <ImageIcon />
                       </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -194,7 +228,8 @@ const ViewGallery = () => {
       >
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
-          Are you sure you want to delete this image?
+          Are you sure you want to delete this{' '}
+          {selectedImage?.fileType || 'file'}?
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>

@@ -94,16 +94,27 @@ const ViewLayoutsList = () => {
 
   const handleStatusToggle = async (layoutId, currentStatus) => {
     try {
+      // Check if layoutId is valid
+      if (!layoutId) {
+        enqueueSnackbar('Invalid layout ID', { variant: 'error' });
+        return;
+      }
+  
       const response = await axiosInstance.patch(
         `/layouts/toggle-status/${layoutId}`,
         { isActive: !currentStatus }
       );
-
+  
       if (response.data.success) {
         fetchLayouts();
+        enqueueSnackbar('Status updated successfully', { variant: 'success' });
       }
     } catch (error) {
-      enqueueSnackbar('Failed to update status', { variant: 'error' });
+      console.error('Error toggling status:', error);
+      enqueueSnackbar(
+        error.response?.data?.message || 'Failed to update status', 
+        { variant: 'error' }
+      );
     }
   };
 
@@ -248,7 +259,7 @@ const ViewLayoutsList = () => {
                   {filteredLayouts
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((layout) => (
-                      <TableRow key={layout._id}>
+                      <TableRow key={layout.id}>
                         <TableCell>{layout.name}</TableCell>
                         <TableCell>
                           <Chip
@@ -263,10 +274,10 @@ const ViewLayoutsList = () => {
                         <TableCell>
                           <StatusToggle
                             isActive={layout.isActive}
-                            itemId={layout._id}
+                            itemId={layout.id}
                             endpoint="layouts"
                             onToggle={() =>
-                              handleStatusToggle(layout._id, layout.isActive)
+                              handleStatusToggle(layout.id, layout.isActive)
                             }
                           />
                         </TableCell>

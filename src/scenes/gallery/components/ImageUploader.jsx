@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { storage } from '../../../utils/firebaseConfig';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import axiosInstance from '../../../utils/axios.config';
 import {
   TextField,
@@ -22,15 +20,16 @@ import {
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../../context/AuthContext';
+import {
+  uploadGalleryImage,
+  uploadImage,
+} from '../../../services/imageService';
 
 const ImageUploader = ({ onUploadSuccess, onClose }) => {
   const theme = useTheme();
   const [imageFile, setImageFile] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
   const [useFile, setUseFile] = useState(true);
-  const [posts, setPosts] = useState([]);
-  const [isPost, setIsPost] = useState(false);
-  const [postId, setPostId] = useState('');
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
@@ -39,27 +38,7 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
     type: '',
     dimensions: { width: 0, height: 0 },
   });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [postsRes, userRes] = await Promise.all([
-          axiosInstance.get('/posts/all-posts'),
-        ]);
-
-        setPosts(postsRes.data.posts || []);
-
-        // if (user) {
-        //   setUserRole(user.role || 'Guest');
-        //   setUserId(user.id);
-        // }
-      } catch (error) {
-        handleError(error, 'Error fetching initial data');
-      }
-    };
-
-    fetchData();
-  }, []);
+  const [fileType, setFileType] = useState('image'); // new state for file type
 
   const handleError = (error, defaultMessage = 'An error occurred') => {
     console.error(defaultMessage, error);
@@ -78,11 +57,17 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
     enqueueSnackbar(errorMessage, { variant: 'error' });
   };
 
-  const validateImageFile = (file) => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const maxSize = 5 * 1024 * 1024; // 5MB
+  const validateFile = (file) => {
+    const validImageTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+    ];
+    const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+    const maxSize = fileType === 'image' ? 5 * 1024 * 1024 : 100 * 1024 * 1024; // 5MB for images, 100MB for videos
 
-    if (!validTypes.includes(file.type)) {
+    if (fileType === 'image' && !validImageTypes.includes(file.type)) {
       enqueueSnackbar(
         'Please upload a valid image file (JPEG, PNG, GIF, WEBP)',
         { variant: 'error' }
@@ -90,10 +75,18 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
       return false;
     }
 
-    if (file.size > maxSize) {
-      enqueueSnackbar('File size should be less than 5MB', {
+    if (fileType === 'video' && !validVideoTypes.includes(file.type)) {
+      enqueueSnackbar('Please upload a valid video file (MP4, WebM, OGG)', {
         variant: 'error',
       });
+      return false;
+    }
+
+    if (file.size > maxSize) {
+      enqueueSnackbar(
+        `File size should be less than ${maxSize / (1024 * 1024)}MB`,
+        { variant: 'error' }
+      );
       return false;
     }
 
@@ -114,12 +107,16 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!validateImageFile(file)) {
+    if (!validateFile(file)) {
       e.target.value = '';
       return;
     }
 
-    const dimensions = await getImageDimensions(file);
+    let dimensions = { width: 0, height: 0 };
+    if (fileType === 'image') {
+      dimensions = await getImageDimensions(file);
+    }
+
     setFileMetadata({
       size: file.size,
       type: file.type,
@@ -157,13 +154,6 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
       return false;
     }
 
-    if (!postId) {
-      enqueueSnackbar('Please select a post for this image', {
-        variant: 'error',
-      });
-      return false;
-    }
-
     if (imageUrl && !validateUrl(imageUrl)) {
       enqueueSnackbar('Please enter a valid URL', { variant: 'error' });
       return false;
@@ -177,45 +167,32 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
 
     try {
       setUploading(true);
-      let firebaseUrl = imageUrl;
 
+      // Handle file upload if a file is selected
       if (useFile && imageFile) {
-        try {
-          const storageRef = ref(
-            storage,
-            `gallery/${Date.now()}-${imageFile.name}`
-          );
-          await uploadBytes(storageRef, imageFile);
-          firebaseUrl = await getDownloadURL(storageRef);
-        } catch (error) {
-          throw new Error('Failed to upload to Firebase storage');
-        }
+        // Uploading the image
+        await uploadGalleryImage(imageFile);
+      } else {
+        // Handling external URL
+        const fileName = 'external-media';
+
+        // If fileType is not set, default to 'image'
+        const type = fileType || 'image';
+
+        await axiosInstance.post('/gallery/upload', {
+          url: imageUrl,
+          fileName,
+          fileType: type,
+        });
       }
 
-      const uploadData = {
-        url: firebaseUrl,
-        fileName: imageFile ? imageFile.name : 'External URL',
-        usageTypes: {
-          isPost: true,
-          postId,
-        },
-        uploadedBy: user._id,
-        metadata: useFile ? fileMetadata : undefined,
-        status: 'active',
-      };
-
-      const response = await axiosInstance.post('/gallery/upload', uploadData);
-
-      if (response.data.success) {
-        enqueueSnackbar('Image uploaded successfully', { variant: 'success' });
-        onUploadSuccess();
-        resetForm();
-        onClose();
-      }
+      enqueueSnackbar('File uploaded successfully', { variant: 'success' });
+      onUploadSuccess(); // Callback for successful upload
+      onClose(); // Close the modal or form after success
     } catch (error) {
-      handleError(error, 'Failed to upload image');
+      handleError(error, 'Failed to upload file');
     } finally {
-      setUploading(false);
+      setUploading(false); // Set uploading state to false after completion
     }
   };
 
@@ -248,10 +225,22 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
       }}
     >
       <Typography variant="h4" sx={{ mb: 4, fontWeight: 600 }}>
-        Upload Image
+        Upload Media
       </Typography>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <FormControl fullWidth>
+          <InputLabel>File Type</InputLabel>
+          <Select
+            value={fileType}
+            onChange={(e) => setFileType(e.target.value)}
+            label="File Type"
+          >
+            <MenuItem value="image">Image</MenuItem>
+            <MenuItem value="video">Video</MenuItem>
+          </Select>
+        </FormControl>
+
         <FormControlLabel
           control={
             <Switch
@@ -270,14 +259,25 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
             fullWidth
             disabled={uploading}
             inputProps={{
-              accept: 'image/jpeg,image/png,image/gif,image/webp',
+              accept:
+                fileType === 'image'
+                  ? 'image/jpeg,image/png,image/gif,image/webp'
+                  : 'video/mp4,video/webm,video/ogg',
             }}
-            helperText="Accepted formats: JPEG, PNG, GIF, WEBP. Max size: 5MB"
+            helperText={
+              fileType === 'image'
+                ? 'Accepted formats: JPEG, PNG, GIF, WEBP. Max size: 5MB'
+                : 'Accepted formats: MP4, WebM, OGG. Max size: 100MB'
+            }
           />
         ) : (
           <TextField
-            label="Image URL"
-            placeholder="https://example.com/image.jpg"
+            label={`${
+              fileType.charAt(0).toUpperCase() + fileType.slice(1)
+            } URL`}
+            placeholder={`https://example.com/${fileType}.${
+              fileType === 'image' ? 'jpg' : 'mp4'
+            }`}
             value={imageUrl}
             onChange={handleUrlChange}
             disabled={uploading}
@@ -290,24 +290,6 @@ const ImageUploader = ({ onUploadSuccess, onClose }) => {
             fullWidth
           />
         )}
-
-        <FormControl fullWidth>
-          <InputLabel>Select Post</InputLabel>
-          <Select
-            value={postId}
-            onChange={(e) => setPostId(e.target.value)}
-            disabled={uploading}
-            fullWidth
-            color="info"
-          >
-            <MenuItem value="">Select Post</MenuItem>
-            {posts.map((post) => (
-              <MenuItem key={post._id} value={post._id}>
-                {post.title.en}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
 
         <Typography variant="subtitle1">
           <strong>Uploaded By: </strong> {user.role}

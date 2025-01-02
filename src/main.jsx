@@ -1,3 +1,6 @@
+// Add this at the very top of the file
+window.global = window;
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import AppRouter from './Router';

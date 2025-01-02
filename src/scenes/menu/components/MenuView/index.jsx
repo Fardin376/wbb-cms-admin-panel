@@ -38,7 +38,7 @@ const StyledTreeItem = styled(TreeItem)(({ theme }) => ({
 }));
 
 const MenuView = () => {
-  const { user, authChecked } = useAuth();
+  const { user } = useAuth();
   const theme = useTheme();
   const [menus, setMenus] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -61,12 +61,12 @@ const MenuView = () => {
 
     // First pass: Create map of items
     items.forEach((item) => {
-      itemMap.set(item._id, { ...item, children: [] });
+      itemMap.set(item.id, { ...item, children: [] });
     });
 
     // Second pass: Build hierarchy
     items.forEach((item) => {
-      const mappedItem = itemMap.get(item._id);
+      const mappedItem = itemMap.get(item.id);
       if (item.parentId && itemMap.has(item.parentId)) {
         const parent = itemMap.get(item.parentId);
         parent.children.push(mappedItem);
@@ -79,33 +79,35 @@ const MenuView = () => {
   };
 
   const fetchMenus = async () => {
+    if (!user) return; // Don't fetch if not authenticated
+
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/menu/get-all-menu-items', {
-        withCredentials: true,
-      });
+      const response = await axiosInstance.get('/menu/get-all-menu-items');
       if (response.data.success) {
         const hierarchicalMenus = buildMenuHierarchy(response.data.data);
         setMenus(hierarchicalMenus);
-        console.log('Hierarchical Menus:', hierarchicalMenus); // Debug log
       }
     } catch (error) {
       console.error('Error fetching menus:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load menu items',
-        severity: 'error',
-      });
+      if (error.response?.status === 401) {
+        // Handle unauthorized error
+        setSnackbar({
+          open: true,
+          message: 'Please log in again to continue',
+          severity: 'error',
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (authChecked && user) {
+    if (user) {
       fetchMenus();
     }
-  }, [authChecked, user]);
+  }, [user]);
 
   const handleEdit = (menu) => {
     setEditingMenu(menu);
@@ -114,7 +116,7 @@ const MenuView = () => {
 
   const handleDeleteMenu = async (menu) => {
     try {
-      await axiosInstance.delete(`/menu/delete-menu-item/${menu._id}`);
+      await axiosInstance.delete(`/menu/delete-menu-item/${menu.id}`); // Change _id to id
       fetchMenus();
       setSnackbar({
         open: true,
@@ -133,12 +135,12 @@ const MenuView = () => {
   const renderTreeItems = (items) => {
     return items.map((item) => (
       <StyledTreeItem
-        key={item._id}
-        nodeId={item._id.toString()}
+        key={item.id}          // Change _id to id
+        nodeId={String(item.id)} // Change _id to id and convert to string
         label={
           <Box sx={{ display: 'flex', alignItems: 'center', py: 1 }}>
             <Typography variant="body2" sx={{ flexGrow: 1 }}>
-              {item.title?.en || 'Untitled'}
+              {item.titleEn || 'Untitled'}
             </Typography>
             <IconButton
               onClick={(e) => {
@@ -169,10 +171,6 @@ const MenuView = () => {
       </StyledTreeItem>
     ));
   };
-
-  if (!authChecked) {
-    return <div>Checking authentication...</div>;
-  }
 
   if (!user) {
     return <div>Please log in to view menus</div>;

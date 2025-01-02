@@ -112,7 +112,12 @@ const PdfUploader = ({ onUploadSuccess }) => {
     try {
       const firstBytes = await readFileHeader(file, 5);
       const header = new Uint8Array(firstBytes);
-      if (header[0] !== 0x25 || header[1] !== 0x50 || header[2] !== 0x44 || header[3] !== 0x46) {
+      if (
+        header[0] !== 0x25 ||
+        header[1] !== 0x50 ||
+        header[2] !== 0x44 ||
+        header[3] !== 0x46
+      ) {
         errors.file = 'Invalid PDF file format';
       }
     } catch (error) {
@@ -179,22 +184,29 @@ const PdfUploader = ({ onUploadSuccess }) => {
   };
 
   const handleUpload = async (postId, categoryId) => {
+    if (!validateForm()) return; // Stop if validation fails
+    console.log('Post ID:', postId); // Debugging
+    console.log('Category ID:', categoryId); // Debugging
     try {
       setLoading(true);
+
+      // Ensure required fields are populated
+      const metadata = {
+        postId: postId || null, // Send null if not selected
+        categoryId: categoryId || null, // Send null if not selected
+        isPublication: false, // Default value
+        isResearch: false, // Default value
+        fileName: file.name.split('.pdf')[0], // Default to file name without extension
+      };
+
       const formData = new FormData();
       formData.append('pdfFile', file);
-      formData.append('metadata', JSON.stringify({
-        usageTypes: {
-          postId,
-          categoryId,
-          isPublication: true
-        }
-      }));
+      formData.append('metadata', JSON.stringify(metadata));
 
       const response = await axiosInstance.post('/pdfs/upload', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       if (response.data.success) {
@@ -307,8 +319,8 @@ const PdfUploader = ({ onUploadSuccess }) => {
             disabled={loading}
           >
             {posts.map((post) => (
-              <MenuItem key={post._id} value={post._id}>
-                {post.title.en}
+              <MenuItem key={post.id} value={post.id}>
+                {post.titleEn}
               </MenuItem>
             ))}
           </Select>
@@ -333,12 +345,12 @@ const PdfUploader = ({ onUploadSuccess }) => {
             disabled={loading}
           >
             {categories.map((category) => (
-              <MenuItem key={category._id} value={category._id}>
+              <MenuItem key={category.id} value={category.id}>
                 <Chip
-                  label={category.name.en}
+                  label={category.nameEn}
                   size="small"
                   icon={
-                    category.name.en.toLowerCase() === 'research' ? (
+                    category.nameEn.toLowerCase() === 'research' ? (
                       <Science />
                     ) : (
                       <MenuBook />

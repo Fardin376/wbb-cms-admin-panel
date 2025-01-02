@@ -16,40 +16,40 @@ import {
 import { Edit, Delete, Add } from '@mui/icons-material';
 import axiosInstance from '../../utils/axios.config';
 import { useSnackbar } from 'notistack';
-import FooterLinksForm from './components/CreateFooterLinksForm';
+import CreateSocialLinksForm from './components/CreateSocialLinksForm';
 
-const ViewFooterLinks = () => {
-  const [footerLinks, setFooterLinks] = useState([]);
+const ViewSocialLinks = () => {
+  const [socialLinks, setSocialLinks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingLink, setEditingLink] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
 
-  const fetchFooterLinks = async () => {
+  const fetchSocialLinks = async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/links/all-footer-links');
-      setFooterLinks(response.data.data || []);
+      const response = await axiosInstance.get('/socials/all-social-links');
+      setSocialLinks(response.data.data || []);
     } catch (error) {
-      setError('Failed to fetch footer links.');
-      enqueueSnackbar('Error fetching footer links.', { variant: 'error' });
+      setError('Failed to fetch social links.');
+      enqueueSnackbar('Error fetching social links.', { variant: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFooterLinks();
+    fetchSocialLinks();
   }, []);
 
   const handleFormClose = async () => {
     setShowForm(false);
     setEditingLink(null);
-    await fetchFooterLinks(); // Refresh posts after form closes
+    await fetchSocialLinks(); // Refresh social links after form closes
   };
 
-  const toggleShowForm = (link = null) => {
+  const toggleShowForm = (link) => {
     setEditingLink(link);
     setShowForm(!showForm);
   };
@@ -57,18 +57,18 @@ const ViewFooterLinks = () => {
   const handleDeleteLink = async (link) => {
     if (
       window.confirm(
-        `Are you sure you want to delete the link "${link.label}"?`
+        `Are you sure you want to delete the social link "${link.nameEn}"?`
       )
     ) {
       setLoading(true);
       try {
-        await axiosInstance.delete(`/links/footer-links/${link.id}`);
-        enqueueSnackbar('Footer link deleted successfully', {
+        await axiosInstance.delete(`/socials/${link.id}`);
+        enqueueSnackbar('Social link deleted successfully', {
           variant: 'success',
         });
-        fetchFooterLinks(); // Refresh links after deletion
+        fetchSocialLinks(); // Refresh links after deletion
       } catch (error) {
-        enqueueSnackbar('Failed to delete footer link', { variant: 'error' });
+        enqueueSnackbar('Failed to delete social link', { variant: 'error' });
       } finally {
         setLoading(false);
       }
@@ -84,9 +84,9 @@ const ViewFooterLinks = () => {
             color="secondary"
             onClick={() => toggleShowForm()}
             startIcon={<Add />}
-            aria-label="Add footer link"
+            aria-label="Add social link"
           >
-            Add Footer Link
+            Add Social Link
           </Button>
         )}
       </Box>
@@ -105,23 +105,19 @@ const ViewFooterLinks = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Position</TableCell>
                   <TableCell>Name (EN)</TableCell>
                   <TableCell>Name (BN)</TableCell>
                   <TableCell>URL</TableCell>
-                  <TableCell>Serial</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {footerLinks.map((link) => (
+                {socialLinks.map((link) => (
                   <TableRow key={link.id}>
-                    <TableCell>{link?.position}</TableCell>
                     <TableCell>{link?.nameEn}</TableCell>
                     <TableCell>{link?.nameBn}</TableCell>
                     <TableCell>{link?.url}</TableCell>
-                    <TableCell>{link?.serial}</TableCell>
                     <TableCell>{link?.status}</TableCell>
                     <TableCell>
                       <IconButton
@@ -148,10 +144,13 @@ const ViewFooterLinks = () => {
       )}
 
       {showForm && (
-        <FooterLinksForm footerLink={editingLink} onClose={handleFormClose} />
+        <CreateSocialLinksForm
+          socialLink={editingLink}
+          onClose={handleFormClose}
+        />
       )}
     </Box>
   );
 };
 
-export default ViewFooterLinks;
+export default ViewSocialLinks;

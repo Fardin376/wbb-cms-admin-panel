@@ -1,10 +1,9 @@
-// Router.jsx (AppRouter)
 import React from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import App from './App';
+import { AuthProvider } from './context/AuthContext';
 import {
   Dashboard,
-  FAQ,
   Menu,
   ViewPages,
   Login,
@@ -12,53 +11,49 @@ import {
   ViewPdfs,
   ViewBanner,
   ViewFooterLinks,
+  ViewSocialLinks,
 } from './scenes';
 import PostList from './scenes/posts';
 import ViewGallery from './scenes/gallery';
 import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
 import Unauthorized from './components/Unauthorized';
 
 const AppRouter = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <AuthProvider>
         <Routes>
+          {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          <Route path="/" element={<App />}>
-            {/* Admin only routes */}
-            <Route
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'superadmin']} />
-              }
-            >
-              <Route path="/menu" element={<Menu />} />
-              <Route path="/layouts" element={<PageLayout />} />
-              <Route path="/pages" element={<ViewPages />} />
-            </Route>
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <App />
+              </ProtectedRoute>
+            }
+          >
+            {/* Admin routes */}
+            <Route path="/menu" element={<Menu />} />
+            <Route path="/layouts" element={<PageLayout />} />
+            <Route path="/pages" element={<ViewPages />} />
 
-            {/* Editor and Admin routes */}
-            <Route
-              element={
-                <ProtectedRoute
-                  allowedRoles={['admin', 'editor', 'superadmin']}
-                />
-              }
-            >
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/posts" element={<PostList />} />
-              <Route path="/gallery" element={<ViewGallery />} />
-              <Route path="/pdfs" element={<ViewPdfs />} />
-              <Route path="/banners" element={<ViewBanner />} />
-              <Route path="/footer-links" element={<ViewFooterLinks />} />
-            </Route>
-
-            {/* Routes accessible to all authenticated users */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/faq" element={<FAQ />} />
-            </Route>
+            {/* Editor routes */}
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/posts" element={<PostList />} />
+            <Route path="/gallery" element={<ViewGallery />} />
+            <Route path="/pdfs" element={<ViewPdfs />} />
+            <Route path="/banners" element={<ViewBanner />} />
+            <Route path="/footer-links" element={<ViewFooterLinks />} />
+            <Route path="/social-links" element={<ViewSocialLinks />} />
           </Route>
         </Routes>
       </AuthProvider>

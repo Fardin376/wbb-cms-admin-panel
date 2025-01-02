@@ -47,7 +47,7 @@ const Copyright = () => {
         <Box
           variants={textVariants}
           initial="hidden"
-          whileInView="visible"
+          whileinview="visible"
           viewport={{ once: true }}
         >
           <Link
@@ -70,7 +70,7 @@ const Copyright = () => {
         <Box
           variants={textVariants}
           initial="hidden"
-          whileInView="visible"
+          whileinview="visible"
           viewport={{ once: true }}
         >
           <Link

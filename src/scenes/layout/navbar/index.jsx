@@ -23,18 +23,25 @@ import {
 import { ToggledContext } from '../../../App';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import React from 'react';
+
 const Navbar = () => {
   const theme = useTheme();
   const colorMode = useContext(ColorModeContext);
   const { toggled, setToggled } = useContext(ToggledContext);
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const isMdDevices = useMediaQuery('(max-width:768px)');
   const isXsDevices = useMediaQuery('(max-width:466px)');
   const colors = tokens(theme.palette.mode);
 
-  const { user } = useAuth();
+  const auth = useAuth();
+  
+  if (!auth || auth.loading) {
+    return null; // Or a loading indicator
+  }
+
+  const { logout, user } = auth;
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);

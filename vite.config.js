@@ -9,9 +9,14 @@ export default defineConfig(({ mode }) => ({
       open: true,
     }),
   ],
+  resolve: {
+    alias: {
+      global: {}, // Add empty global object
+    },
+  },
   optimizeDeps: {
-    include: ['firebase/storage'],
     exclude: ['grapesjs'],
+    include: ['fabric '], // Ensure draft-js is pre-bundled
   },
   build: {
     outDir: 'dist',
@@ -23,11 +28,25 @@ export default defineConfig(({ mode }) => ({
         },
       },
     },
+    commonjsOptions: {
+      include: [/node_modules/],
+    },
   },
   server: {
-    port: 3000,
+    port: 5174,
     strictPort: true,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   base: mode === 'production' ? '/' : './',
+  define: {
+    global: 'globalThis', // Define global as globalThis
+    'process.env': {},
+  },
 }));

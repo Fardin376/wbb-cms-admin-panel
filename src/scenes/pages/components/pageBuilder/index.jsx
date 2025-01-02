@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box } from '@mui/material';
 import PanelTop from './components/PanelTop';
 import Canvas from './components/Canvas';
@@ -74,6 +74,31 @@ const PageBuilder = ({ pageId, onClose }) => {
       throw error;
     }
   };
+
+  const loadTemplate = async (selectedLanguage) => {
+    try {
+      const response = await axiosInstance.get(
+        `/pages/template/${pageId}/${selectedLanguage}`
+      );
+      
+      if (response.data.success && response.data.template) {
+        const template = response.data.template.content;
+        editor?.setComponents(template.html || '');
+        editor?.setStyle(template.css || '');
+        if (template.js) {
+          editor?.setScripts(template.js);
+        }
+      }
+    } catch (error) {
+      handleError(error, 'Failed to load template');
+    }
+  };
+
+  useEffect(() => {
+    if (editor && language) {
+      loadTemplate(language);
+    }
+  }, [editor, language]);
 
   return (
     <Box

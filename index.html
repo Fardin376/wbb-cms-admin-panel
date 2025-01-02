@@ -9,4 +9,22 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
+
+  <script>
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.matches('.ql-editor img')) {
+        // Remove selected class from all images
+        document.querySelectorAll('.ql-editor img').forEach((img) => {
+          img.classList.remove('selected');
+        });
+        // Add selected class to clicked image
+        e.target.classList.add('selected');
+      } else {
+        // Remove selected class when clicking outside
+        document.querySelectorAll('.ql-editor img').forEach((img) => {
+          img.classList.remove('selected');
+        });
+      }
+    });
+  </script>
 </html>

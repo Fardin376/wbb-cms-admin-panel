@@ -235,10 +235,10 @@ const SideBar = () => {
             icon={<LinkOutlined fontSize="large" />}
           />
           <Item
-            title="Files & Links"
-            path="/pdfs"
+            title="Social Media Links"
+            path="/social-links"
             colors={colors}
-            icon={<FilePresent fontSize="large" />}
+            icon={<LinkOutlined fontSize="large" />}
           />
         </Menu>
       </Box>

@@ -15,6 +15,7 @@ import {
 import { tokens } from '../../../../theme';
 import { Close } from '@mui/icons-material';
 import slugify from 'slugify';
+import { useAuth } from '../../../../context/AuthContext';
 
 export default function CreatePageForm({ page, onClose }) {
   if (page && typeof page !== 'object') {
@@ -26,6 +27,7 @@ export default function CreatePageForm({ page, onClose }) {
   const colors = tokens(theme.palette.mode);
 
   const [allMenus, setAllMenus] = useState([]);
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [allLayouts, setAllLayouts] = useState([]);
@@ -33,10 +35,14 @@ export default function CreatePageForm({ page, onClose }) {
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [titleEn, setTitleEn] = useState('');
+  const [titleBn, setTitleBn] = useState('');
 
   useEffect(() => {
     if (page) {
       try {
+        setTitleEn(page.titleEn || '');
+        setTitleBn(page.titleBn || '');
         setName(page.name || '');
         setSlug(page.slug || '');
         const layoutId = page.layout?._id;
@@ -93,13 +99,13 @@ export default function CreatePageForm({ page, onClose }) {
   const handleNameChange = (e) => {
     const newName = e.target.value;
     setName(newName);
-    
+
     if (newName.trim()) {
       if (!slug) {
-        const generatedSlug = slugify(newName, { 
-          lower: true, 
+        const generatedSlug = slugify(newName, {
+          lower: true,
           strict: true,
-          remove: /[*+~.()'"!:@]/g
+          remove: /[*+~.()'"!:@]/g,
         });
         setSlug(generatedSlug);
       }
@@ -107,8 +113,25 @@ export default function CreatePageForm({ page, onClose }) {
     }
   };
 
+  const handleTitleEnChange = (e) => {
+    const newTitle = e.target.value;
+    setTitleEn(newTitle);
+
+    if (newTitle.trim() && !slug) {
+      const generatedSlug = slugify(newTitle, {
+        lower: true,
+        strict: true,
+        remove: /[*+~.()'"!:@]/g,
+      });
+      setSlug(generatedSlug);
+    }
+    setErrors((prev) => ({ ...prev, titleEn: '' }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
+    if (!titleEn.trim()) newErrors.titleEn = 'English title is required';
+    if (!titleBn.trim()) newErrors.titleBn = 'Bangla title is required';
     if (!name.trim()) newErrors.name = 'Name is required';
     if (!slug.trim()) newErrors.slug = 'Slug is required';
     if (!/^[a-z0-9-/]+$/.test(slug)) newErrors.slug = 'Invalid slug format';
@@ -130,17 +153,27 @@ export default function CreatePageForm({ page, onClose }) {
     try {
       const pageData = {
         name: name.trim(),
+        titleEn: titleEn.trim(),
+        titleBn: titleBn.trim(),
         slug: slug.trim(),
-        layout: layout,
+        layout: parseInt(layout),
       };
 
-      if (!pageData.name || !pageData.slug || !pageData.layout) {
+      // Remove createdBy from pageData as it's handled by the backend
+
+      if (
+        !pageData.name ||
+        !pageData.titleEn ||
+        !pageData.titleBn ||
+        !pageData.slug ||
+        !pageData.layout
+      ) {
         throw new Error('Missing required fields');
       }
 
       const response = await axiosInstance({
         method: page ? 'put' : 'post',
-        url: page ? `/pages/update/${page._id}` : '/pages/create',
+        url: page ? `/pages/update/${page.id}` : '/pages/create',
         data: pageData,
         timeout: 5000,
       });
@@ -154,9 +187,9 @@ export default function CreatePageForm({ page, onClose }) {
     } catch (error) {
       console.error('Error saving page:', error);
       setMessage(
-        error.response?.data?.message || 
-        error.message || 
-        'An error occurred while saving the page'
+        error.response?.data?.message ||
+          error.message ||
+          'An error occurred while saving the page'
       );
     } finally {
       setIsSubmitting(false);
@@ -202,6 +235,32 @@ export default function CreatePageForm({ page, onClose }) {
 
       <form onSubmit={handleSubmit} noValidate>
         <TextField
+          label="Page Title (English)"
+          variant="outlined"
+          fullWidth
+          value={titleEn}
+          onChange={handleTitleEnChange}
+          color="info"
+          required
+          error={!!errors.titleEn}
+          helperText={errors.titleEn}
+          sx={{ mb: 2 }}
+        />
+
+        <TextField
+          label="Page Title (Bangla)"
+          variant="outlined"
+          fullWidth
+          value={titleBn}
+          onChange={(e) => setTitleBn(e.target.value)}
+          color="info"
+          required
+          error={!!errors.titleBn}
+          helperText={errors.titleBn}
+          sx={{ mb: 2 }}
+        />
+
+        <TextField
           label="Page Name (English)"
           variant="outlined"
           fullWidth
@@ -214,9 +273,9 @@ export default function CreatePageForm({ page, onClose }) {
           sx={{ mb: 2 }}
         />
 
-        <FormControl 
-          fullWidth 
-          color="info" 
+        <FormControl
+          fullWidth
+          color="info"
           error={!!errors.slug}
           sx={{ mb: 2 }}
         >
@@ -227,14 +286,16 @@ export default function CreatePageForm({ page, onClose }) {
             label="Menu Slug"
             required
           >
-            <MenuItem value="">Select a menu slug</MenuItem>
+            <MenuItem key="select-menu" value="">
+              Select a menu slug
+            </MenuItem>
             {allMenus.map((menu) => (
-              <MenuItem 
-                key={menu._id} 
+              <MenuItem
+                key={`menu-${menu.id}`}
                 value={menu.slug}
                 disabled={!menu.isActive}
               >
-                {menu.slug} ({menu.name})
+                {menu.slug} ({menu.titleEn})
               </MenuItem>
             ))}
           </Select>
@@ -256,9 +317,14 @@ export default function CreatePageForm({ page, onClose }) {
             label="Layout"
             required
           >
-            <MenuItem value="">None</MenuItem>
+            <MenuItem key="select-layout" value="">
+              None
+            </MenuItem>
             {allLayouts.map((layoutItem) => (
-              <MenuItem key={layoutItem._id} value={layoutItem._id}>
+              <MenuItem
+                key={`layout-${layoutItem.id || layoutItem._id}`}
+                value={layoutItem.id || layoutItem._id}
+              >
                 {layoutItem.name}
               </MenuItem>
             ))}

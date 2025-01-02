@@ -94,7 +94,7 @@ const ViewPdfs = () => {
   const handleDownload = async (pdfId, fileName) => {
     try {
       // First try to get the file directly from the URL if available
-      const pdf = pdfs.find((p) => p._id === pdfId);
+      const pdf = pdfs.find((p) => p.id === pdfId);
       if (pdf?.url) {
         // Create a temporary link to download the file
         const link = document.createElement('a');
@@ -257,7 +257,7 @@ const ViewPdfs = () => {
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((pdf) => (
                       <TableRow
-                        key={pdf._id}
+                        key={pdf.id}
                         hover
                         sx={{
                           '&:last-child td, &:last-child th': { border: 0 },
@@ -297,29 +297,15 @@ const ViewPdfs = () => {
                             </Box>
                           </Box>
                         </TableCell>
-                        <TableCell>
-                          {pdf.usageTypes.postId?.title?.en || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {pdf.usageTypes.categoryId?.name?.en || 'N/A'}
-                        </TableCell>
+                        <TableCell>{pdf.post?.titleEn || 'N/A'}</TableCell>
+                        <TableCell>{pdf.category?.nameEn || 'N/A'}</TableCell>
                         <TableCell>
                           <Chip
-                            icon={
-                              pdf.usageTypes.isResearch ? (
-                                <Science />
-                              ) : (
-                                <MenuBook />
-                              )
-                            }
+                            icon={pdf.isResearch ? <Science /> : <MenuBook />}
                             label={
-                              pdf.usageTypes.isResearch
-                                ? 'Research'
-                                : 'Publication'
+                              pdf.isResearch ? 'Research' : pdf.category?.nameEn
                             }
-                            color={
-                              pdf.usageTypes.isResearch ? 'info' : 'secondary'
-                            }
+                            color={pdf.isResearch ? 'info' : 'secondary'}
                             size="small"
                           />
                         </TableCell>
@@ -329,7 +315,7 @@ const ViewPdfs = () => {
                               <IconButton
                                 color="secondary"
                                 onClick={() =>
-                                  handleDownload(pdf._id, pdf.fileName)
+                                  handleDownload(pdf.id, pdf.fileName)
                                 }
                               >
                                 <Download />
@@ -344,7 +330,7 @@ const ViewPdfs = () => {
                                       'Are you sure you want to delete this PDF?'
                                     )
                                   ) {
-                                    handleDeletePdf(pdf._id);
+                                    handleDeletePdf(pdf.id);
                                   }
                                 }}
                               >
