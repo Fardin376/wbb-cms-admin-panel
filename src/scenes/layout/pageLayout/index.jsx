@@ -78,7 +78,7 @@ const ViewLayoutsList = () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get('/layouts/all-layouts');
-      setLayouts(response.data?.layouts || []);
+      setLayouts(response.data.layouts || []);
     } catch (error) {
       console.error('Error fetching layouts:', error);
       enqueueSnackbar(
